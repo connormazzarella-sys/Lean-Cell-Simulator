@@ -1952,7 +1952,7 @@ function placeStationFromTemplate(templateId) {
     shape: 'custom', shapePoints: t.shapePoints,
     manual: t.manual || 0, auto: t.auto || 0, walkAway: t.walkAway !== false, startWet: !!t.startWet,
     calibrationEvery: t.calibrationEvery || 0, calibrationTime: t.calibrationTime || 0,
-    color: t.color || '#38bdf8', fontSize: t.fontSize || 18,
+    color: t.color || '#38bdf8',
     machineStatus: 'IDLE', machineTimer: 0, ports: [],
     initialStock: t.initialStock !== undefined ? t.initialStock : 100,
     stock: t.initialStock !== undefined ? t.initialStock : 100, completed: 0
@@ -3091,15 +3091,18 @@ function draw(timestamp) {
 
     const cx = 0, cy = 0;
     const nameLines = (st.name || 'Station').split('\n');
-    const stBaseSize = st.fontSize || 18;
+    // Text size always auto-fits the box: start from a generous ceiling and let the shrink-to-fit
+    // loop below find the true largest size that fits — it already tracks zoom for free since this
+    // whole block is drawn inside the camZoom-scaled canvas transform.
+    const stBaseSize = Math.max(8, Math.min(120, Math.ceil(st.h)));
     // Only reserve space for the status row (RUNNING/READY) when it will actually be drawn,
     // otherwise idle stations center their title+subtext in a block that's taller than what's rendered.
     const showsStatusRow = st.type === 'station' && (st.machineStatus === 'RUNNING' || st.machineStatus === 'READY_UNLOAD');
     // Estimated block height (title + subtext rows) for a given title size, used to shrink-to-fit.
     const estimateStHeight = (size) => {
-      const sub = Math.max(10, Math.floor(size * 0.75));
+      const sub = Math.max(4, size * 0.75);
       let h = nameLines.length * (size * 1.1);
-      h += st.type === 'station' ? (6 + sub) + (showsStatusRow ? (8 + sub) : 0) : (6 + sub);
+      h += st.type === 'station' ? (1 + sub) + (showsStatusRow ? (8 + sub) : 0) : (1 + sub);
       return h;
     };
     let titleSize = Math.max(8, Math.round(stBaseSize));
@@ -3110,7 +3113,16 @@ function draw(timestamp) {
       for (const line of nameLines) { const w = ctx.measureText(line.trim()).width; if (w > widest) widest = w; }
       if (widest <= st.w * 0.85) break;
     }
-    const subSize = Math.max(10, Math.floor(titleSize * 0.75));
+    // The loop above bottoms out at size 8 — if the name is still too wide for the box at that floor
+    // (very narrow/tiny stations), scale precisely down instead of letting it overflow the edges.
+    ctx.font = `900 ${titleSize}px sans-serif`;
+    let titleWidest = 0;
+    for (const line of nameLines) { const w = ctx.measureText(line.trim()).width; if (w > titleWidest) titleWidest = w; }
+    if (titleWidest > st.w * 0.85) titleSize *= (st.w * 0.85) / titleWidest;
+    // Likewise the whole title+subtext block is scaled down together (instead of dropping the subtext row)
+    // so manual/auto time stays visible even on very short boxes.
+    if (estimateStHeight(titleSize) > st.h * 0.85) titleSize *= (st.h * 0.85) / estimateStHeight(titleSize);
+    const subSize = Math.max(4, titleSize * 0.75);
     const lineSpacing = titleSize * 1.1;
     const totalHeight = estimateStHeight(titleSize);
     
@@ -3124,11 +3136,15 @@ function draw(timestamp) {
         startY += lineSpacing;
     });
     
-    startY += 6; // Padding gap below title
+    startY += 1; // Tight gap below title so subtext sits on the next line
 
     if (st.type === 'station') {
       ctx.font = `700 ${subSize}px sans-serif`; ctx.fillStyle = isLightTheme ? '#475569' : 'rgba(255,255,255,0.9)';
-      ctx.fillText(`M:${st.manual}s  A:${st.auto}s`, cx, startY);
+      const subText = `M:${st.manual}s  A:${st.auto}s`;
+      const subWidest = ctx.measureText(subText).width;
+      const fitSubSize = subWidest > st.w * 0.85 ? subSize * (st.w * 0.85) / subWidest : subSize;
+      ctx.font = `700 ${fitSubSize}px sans-serif`;
+      ctx.fillText(subText, cx, startY);
       
       startY += subSize + 8; // Move down for status
       
@@ -3142,7 +3158,11 @@ function draw(timestamp) {
       }
     } else {
       ctx.fillStyle = '#38bdf8'; ctx.font = `700 ${subSize}px sans-serif`;
-      ctx.fillText(`${st.stock !== undefined ? st.stock : 0} raw / ${st.completed || 0} done`, cx, startY);
+      const subText = `${st.stock !== undefined ? st.stock : 0} raw / ${st.completed || 0} done`;
+      const subWidest = ctx.measureText(subText).width;
+      const fitSubSize = subWidest > st.w * 0.85 ? subSize * (st.w * 0.85) / subWidest : subSize;
+      ctx.font = `700 ${fitSubSize}px sans-serif`;
+      ctx.fillText(subText, cx, startY);
     }
 
     if (st.type === 'station') {
