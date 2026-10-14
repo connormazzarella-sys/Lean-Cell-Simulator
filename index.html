@@ -2992,6 +2992,7 @@ function draw(timestamp) {
     ctx.restore();
   });
 
+  const routeBadges = [];
   operators.forEach(op => {
     if (op.hidePath) return;
     const stepNumbers = getRouteStepNumbers(op.route);
@@ -3023,17 +3024,11 @@ function draw(timestamp) {
       if (leg.joints) leg.joints.forEach(j => { ctx.fillStyle = routeColor; ctx.beginPath(); ctx.arc(j.x, j.y, 4/camZoom, 0, Math.PI * 2); ctx.fill(); });
 
       const midInfo = getPolylineMidpointInfo(wps);
-      // Offset the step badge to the side of the line so it never covers the direction arrow drawn on the line itself.
-      const badgeOff = 16;
-      const bx = midInfo.x - Math.sin(midInfo.angle) * badgeOff, by = midInfo.y + Math.cos(midInfo.angle) * badgeOff;
-      ctx.save(); ctx.translate(bx, by); ctx.scale(1/camZoom, 1/camZoom);
-      ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2);
-      ctx.fillStyle = routeColor; ctx.fill();
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.fillStyle = '#0a0f1d'; ctx.font = '700 11px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(stepNumbers[legIdx]), 0, 0);
-      ctx.restore();
+      // Shift the badge back along the line (away from the arrow at the midpoint) so it stays on the line without covering the arrow.
+      const badgeOff = -18;
+      const bx = midInfo.x + Math.cos(midInfo.angle) * badgeOff, by = midInfo.y + Math.sin(midInfo.angle) * badgeOff;
+      // Badges are drawn in a later pass (after stations) so they always stay on top instead of being covered.
+      routeBadges.push({ bx, by, angle: midInfo.angle, routeColor, num: stepNumbers[legIdx] });
     });
   });
 
@@ -3188,6 +3183,18 @@ function draw(timestamp) {
       ctx.fillStyle = (activeRouteStartPort && activeRouteStartPort.id === p.id) ? '#f59e0b' : '#38bdf8';
       ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2/camZoom; ctx.stroke();
     });
+  });
+
+  // Draw route step-number badges last so they always sit on top of stations instead of being covered.
+  routeBadges.forEach(({ bx, by, routeColor, num }) => {
+    ctx.save(); ctx.translate(bx, by); ctx.scale(1/camZoom, 1/camZoom);
+    ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    ctx.fillStyle = routeColor; ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#0a0f1d'; ctx.font = '700 11px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(num), 0, 0);
+    ctx.restore();
   });
 
   if (hoveredEdgeAdd && currentTool === 'select') {
