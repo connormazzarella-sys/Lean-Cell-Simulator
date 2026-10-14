@@ -3024,9 +3024,9 @@ function draw(timestamp) {
       if (leg.joints) leg.joints.forEach(j => { ctx.fillStyle = routeColor; ctx.beginPath(); ctx.arc(j.x, j.y, 4/camZoom, 0, Math.PI * 2); ctx.fill(); });
 
       const midInfo = getPolylineMidpointInfo(wps);
-      // Shift the badge back along the line (away from the arrow at the midpoint) so it stays on the line without covering the arrow.
-      const badgeOff = -18;
-      const bx = midInfo.x + Math.cos(midInfo.angle) * badgeOff, by = midInfo.y + Math.sin(midInfo.angle) * badgeOff;
+      // Tuck the badge right next to the arrow on the outside of the line, close enough to read as a pair without overlapping it.
+      const badgeOff = 6;
+      const bx = midInfo.x - Math.sin(midInfo.angle) * badgeOff, by = midInfo.y + Math.cos(midInfo.angle) * badgeOff;
       // Badges are drawn in a later pass (after stations) so they always stay on top instead of being covered.
       routeBadges.push({ bx, by, angle: midInfo.angle, routeColor, num: stepNumbers[legIdx] });
     });
