@@ -106,6 +106,8 @@
   .stat-badge { display: flex; flex-direction: column; }
   .stat-badge .stat-title { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
   .stat-badge .stat-value { font-size: 13px; font-weight: 700; color: var(--text); }
+  /* Fixed width so the variable-length live-state text can't trigger sim-bar re-wrap/jolt */
+  #dispState { display: inline-block; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 
   #results-panel { width: 280px; background: var(--bg-panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; transition: width 0.2s; }
   #results-panel.collapsed { display: none !important; }
@@ -492,7 +494,7 @@
           </div>
           <div id="designerNodeFields" style="display:none;">
             <div class="form-group"><label>Initial Stock Qty</label><input type="number" id="designerInitialStock" value="100" min="0"></div>
-            <div class="checkbox-group"><input type="checkbox" id="designerNodeStartWet"><label for="designerNodeStartWet" style="cursor:pointer;">Start wet (begins with 1 done part)</label></div>
+            <div class="form-group"><label>Initial Done Qty</label><input type="number" id="designerNodeInitialCompleted" value="0" min="0"></div>
           </div>
         </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 6px;">
@@ -1194,7 +1196,7 @@ function renderInspector() {
         ${st.calibrationEvery > 0 ? `<div style="font-size:11px;">Calibration: every ${st.calibrationEvery} parts (+${st.calibrationTime}s)</div>` : ''}
         <div style="font-size:11px;">${st.walkAway ? 'Walk away while running' : 'Operator stays (coupled)'}${st.startWet ? ' · Starts wet' : ''}</div>
       ` : `
-        <div style="font-size:11px; margin-top:6px;">Initial Stock: <strong>${st.initialStock !== undefined ? st.initialStock : 100}</strong>${st.startWet ? ' · Starts wet (1 done)' : ''}</div>
+        <div style="font-size:11px; margin-top:6px;">Initial Stock: <strong>${st.initialStock !== undefined ? st.initialStock : 100}</strong>${(st.initialCompleted || 0) > 0 ? ` · Starts with ${st.initialCompleted} done` : ''}</div>
       `}
     </div>
     <button onclick="openEditInDesigner('${st.id}')" style="width:100%; margin-bottom:6px;">✏️ Edit as New Template</button>
@@ -1632,13 +1634,21 @@ function drawDesignerLabelPreview(shape) {
   const cx = shape.x + shape.w / 2, cy = shape.y + shape.h / 2;
   const nameLines = name.split('\n');
   const lineSpacing = titleSize * 1.1;
-  let totalHeight = nameLines.length * lineSpacing;
-  if (designerKind === 'station' && role === 'station') totalHeight += 6 / z + subSize;
-  let startY = cy - totalHeight / 2;
-  dctx.textAlign = 'center'; dctx.textBaseline = 'top';
   dctx.fillStyle = isLightTheme ? '#0f172a' : '#ffffff';
   dctx.font = `900 ${titleSize}px sans-serif`;
-  nameLines.forEach(line => { dctx.fillText(line.trim(), cx, startY); startY += lineSpacing; });
+  let startY;
+  if (designerKind === 'zone') {
+    const zPad = 6 / z;
+    dctx.textAlign = 'left'; dctx.textBaseline = 'top';
+    startY = shape.y + zPad;
+    nameLines.forEach(line => { dctx.fillText(line.trim(), shape.x + zPad, startY); startY += lineSpacing; });
+  } else {
+    let totalHeight = nameLines.length * lineSpacing;
+    if (role === 'station') totalHeight += 6 / z + subSize;
+    startY = cy - totalHeight / 2;
+    dctx.textAlign = 'center'; dctx.textBaseline = 'top';
+    nameLines.forEach(line => { dctx.fillText(line.trim(), cx, startY); startY += lineSpacing; });
+  }
   startY += 6 / z;
   if (designerKind === 'station' && role === 'station') {
     dctx.font = `700 ${subSize}px sans-serif`;
@@ -1742,7 +1752,7 @@ function resetDesignerForm() {
   document.getElementById('designerCalTime').value = 0;
   document.getElementById('designerWalkAway').checked = true;
   document.getElementById('designerStartWet').checked = false;
-  document.getElementById('designerNodeStartWet').checked = false;
+  document.getElementById('designerNodeInitialCompleted').value = 0;
   document.getElementById('designerInitialStock').value = 100;
   document.getElementById('designerColor').value = '#38bdf8';
   document.getElementById('designerFontSize').value = 18;
@@ -1758,7 +1768,7 @@ function populateDesignerForm(t) {
   document.getElementById('designerCalTime').value = t.calibrationTime || 0;
   document.getElementById('designerWalkAway').checked = t.walkAway !== false;
   document.getElementById('designerStartWet').checked = !!t.startWet;
-  document.getElementById('designerNodeStartWet').checked = !!t.startWet;
+  document.getElementById('designerNodeInitialCompleted').value = t.initialCompleted !== undefined ? t.initialCompleted : (t.startWet ? 1 : 0);
   document.getElementById('designerInitialStock').value = t.initialStock !== undefined ? t.initialStock : 100;
   document.getElementById('designerColor').value = t.color || '#38bdf8';
   document.getElementById('designerFontSize').value = t.fontSize || 18;
@@ -1797,7 +1807,8 @@ function saveDesignerTemplate() {
     calibrationEvery: parseInt(document.getElementById('designerCalEvery').value) || 0,
     calibrationTime: parseFloat(document.getElementById('designerCalTime').value) || 0,
     walkAway: document.getElementById('designerWalkAway').checked,
-    startWet: document.getElementById('designerRole').value === 'node' ? document.getElementById('designerNodeStartWet').checked : document.getElementById('designerStartWet').checked,
+    startWet: document.getElementById('designerStartWet').checked,
+    initialCompleted: parseInt(document.getElementById('designerNodeInitialCompleted').value) || 0,
     initialStock: parseInt(document.getElementById('designerInitialStock').value) || 0,
     color: document.getElementById('designerColor').value,
     fontSize: parseInt(document.getElementById('designerFontSize').value) || 18,
@@ -1822,6 +1833,7 @@ function propagateTemplateToInstances(t) {
     st.color = t.color; st.fontSize = t.fontSize;
     st.shape = 'custom'; st.shapePoints = t.shapePoints; st.w = t.w; st.h = t.h;
     st.initialStock = t.initialStock;
+    st.initialCompleted = t.initialCompleted;
     changed = true;
   });
   if (changed) { renderInspector(); calculateAnalyticalConclusion(); }
@@ -1955,7 +1967,9 @@ function placeStationFromTemplate(templateId) {
     color: t.color || '#38bdf8',
     machineStatus: 'IDLE', machineTimer: 0, ports: [],
     initialStock: t.initialStock !== undefined ? t.initialStock : 100,
-    stock: t.initialStock !== undefined ? t.initialStock : 100, completed: 0
+    stock: t.initialStock !== undefined ? t.initialStock : 100,
+    initialCompleted: t.initialCompleted !== undefined ? t.initialCompleted : (t.startWet ? 1 : 0),
+    completed: t.initialCompleted !== undefined ? t.initialCompleted : (t.startWet ? 1 : 0)
   };
   stations.push(newStation);
   selectedStationIds = [newStation.id]; selectedZoneId = null;
@@ -2028,13 +2042,14 @@ function renderPathLegsList() {
           ${pathGroups.map(g => `<option value="${g.id}" ${leg.groupId === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}
         </select>
       </div>` : ''}
-      ${(stations.find(s => s.id === leg.fromStationId)?.type === 'node' || stations.find(s => s.id === leg.toStationId)?.type === 'node') ? `<div style="display:flex; gap:4px; align-items:center; margin-top:2px;">
-        <label style="font-size:9px;">At node:</label>
+      ${stations.find(s => s.id === leg.fromStationId)?.type === 'node' ? `<div style="display:flex; gap:4px; align-items:center; margin-top:2px;">
+        <label style="font-size:9px;">Leaving node:</label>
         <select style="font-size:10px; padding:2px; flex:1;" onchange="updatePathLeg('${op.id}', ${i}, 'nodeAction', this.value)">
-          <option value="" ${!leg.nodeAction ? 'selected' : ''}>Auto (pick up raw / drop off done)</option>
-          <option value="pickupRaw" ${leg.nodeAction === 'pickupRaw' ? 'selected' : ''}>Pick up raw stock</option>
-          <option value="dropoffDone" ${leg.nodeAction === 'dropoffDone' ? 'selected' : ''}>Drop off done parts</option>
-          <option value="pickupDone" ${leg.nodeAction === 'pickupDone' ? 'selected' : ''}>Pick up done parts</option>
+          <option value="" ${!leg.nodeAction ? 'selected' : ''}>Auto (drop off done + pick up raw)</option>
+          <option value="dropoffDone" ${leg.nodeAction === 'dropoffDone' ? 'selected' : ''}>Drop off done parts only</option>
+          <option value="pickupRaw" ${leg.nodeAction === 'pickupRaw' ? 'selected' : ''}>Pick up raw stock only</option>
+          <option value="pickupDone" ${leg.nodeAction === 'pickupDone' ? 'selected' : ''}>Pick up done parts only</option>
+          <option value="none" ${leg.nodeAction === 'none' ? 'selected' : ''}>Pass through (no action)</option>
         </select>
       </div>` : ''}
     </div>
@@ -2087,7 +2102,15 @@ function renderPathGroups() {
           <option value="dropoffThreshold" ${g.triggerMode === 'dropoffThreshold' ? 'selected' : ''}>On drop-off qty</option>
         </select>
       </div>
-      ${g.triggerMode === 'dropoffThreshold' ? `<div style="display:flex; gap:4px; align-items:center; margin-top:2px;"><label style="font-size:9px;">Trigger every</label><input type="number" min="1" value="${g.threshold}" style="width:50px; padding:2px;" oninput="updatePathGroup('${g.id}', 'threshold', parseInt(this.value) || 1)"><span style="font-size:9px; color:var(--text-muted);">parts</span></div>` : ''}
+      ${g.triggerMode === 'dropoffThreshold' ? `
+      <div style="display:flex; gap:4px; align-items:center; margin-top:2px;"><label style="font-size:9px;">Trigger every</label><input type="number" min="1" value="${g.threshold}" style="width:50px; padding:2px;" oninput="updatePathGroup('${g.id}', 'threshold', parseInt(this.value) || 1)"><span style="font-size:9px; color:var(--text-muted);">parts</span></div>
+      <div style="display:flex; gap:4px; align-items:center; margin-top:2px;">
+        <label style="font-size:9px;">At location</label>
+        <select style="font-size:10px; padding:2px; flex:1;" onchange="updatePathGroup('${g.id}', 'countStationId', this.value)">
+          <option value="">(cell-wide total)</option>
+          ${stations.filter(s => s.type === 'node').map(s => `<option value="${s.id}" ${g.countStationId === s.id ? 'selected' : ''}>${(s.name || '').split('\n')[0]}</option>`).join('')}
+        </select>
+      </div>` : ''}
     </div>
   `).join('');
 }
@@ -2108,10 +2131,15 @@ function getPathWaypoints(leg) {
 }
 
 function getRouteStepNumbers(route) {
-  let step = 1;
-  return route.map((leg, i) => {
-    if (i > 0 && leg.fromStationId !== route[i - 1].fromStationId) step++;
-    return step;
+  // Each path group gets its own independent step-number sequence (starting at 1), instead of one continuous count across the whole route.
+  const counters = {};
+  return route.map(leg => {
+    const key = leg.groupId || '';
+    let c = counters[key];
+    if (!c) { c = { step: 1, lastFrom: leg.fromStationId }; counters[key] = c; return c.step; }
+    if (leg.fromStationId !== c.lastFrom) c.step++;
+    c.lastFrom = leg.fromStationId;
+    return c.step;
   });
 }
 
@@ -2192,16 +2220,6 @@ function getManualProgressAt(stationId) {
   const st = stations.find(s => s.id === stationId);
   if (!st || !(st.manual > 0)) return null;
   return { pct: op.phaseTimer / st.manual, color: op.color, remaining: Math.max(0, st.manual - op.phaseTimer) };
-}
-
-function drawProgressBar(x, y, w, h, pct, color) {
-  ctx.fillStyle = isLightTheme ? 'rgba(15,23,42,0.12)' : 'rgba(255,255,255,0.15)';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, w * Math.max(0, Math.min(1, pct)), h);
-  ctx.strokeStyle = isLightTheme ? 'rgba(15,23,42,0.25)' : 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 1/camZoom;
-  ctx.strokeRect(x, y, w, h);
 }
 
 // Shrinks font size (never above baseSize) so every line fits maxW and the whole block fits maxH.
@@ -2458,9 +2476,12 @@ function startCanvasRecording() {
     alert('Recording is not supported in this browser.');
     return;
   }
-  if (!isSimActive) {
-    alert('Start the simulation first, then record.');
-    return;
+  if (!isRunning) {
+    if (!operators.some(op => op.route.length > 0)) {
+      alert('Add at least one operator route before recording.');
+      return;
+    }
+    toggleSim();
   }
 
   recordMimeType = getSupportedRecordMimeType();
@@ -2531,15 +2552,6 @@ function startOperatorAtRouteStart(op) {
   op.x = p1.x; op.y = p1.y;
   op.waitingFromStationId = firstLeg.fromStationId; op.phase = 'WAIT_FORK';
   advanceOperatorRoute(op);
-
-  // Legacy routes with no explicit nodeAction never got a pickup from applyLegOriginAction above.
-  if (!op.holdsPart && !firstLeg.nodeAction && firstLeg.pathType !== 'auto') {
-    const startStation = stations.find(s => s.id === firstLeg.fromStationId);
-    if (startStation && startStation.type === 'node' && startStation.stock > 0) {
-       startStation.stock--;
-       op.holdsPart = true;
-    }
-  }
 }
 
 function applyInitialConditions() {
@@ -2548,7 +2560,7 @@ function applyInitialConditions() {
       const wet = !!st.startWet;
       if (wet && st.auto > 0) { st.machineStatus = 'READY_UNLOAD'; st.machineTimer = st.auto; } else { st.machineStatus = 'IDLE'; st.machineTimer = 0; }
     }
-    if (st.type === 'node') { st.stock = st.initialStock !== undefined ? st.initialStock : 100; st.completed = st.startWet ? 1 : 0; }
+    if (st.type === 'node') { st.stock = st.initialStock !== undefined ? st.initialStock : 100; st.completed = st.initialCompleted !== undefined ? st.initialCompleted : (st.startWet ? 1 : 0); }
   });
   operators.forEach(op => startOperatorAtRouteStart(op));
 }
@@ -2559,13 +2571,20 @@ function resetSim() {
   isRunning = false; isSimActive = false; simTime = 0; totalPartsCompleted = 0; lastInventoryUpdate = 0;
   document.getElementById('btnPlay').innerText = 'Play Simulation'; document.getElementById('btnPlay').className = 'primary';
   operators.forEach(op => { op.route.forEach(l => { l.completedOnce = false; l.autoBusy = false; l.autoElapsed = 0; }); startOperatorAtRouteStart(op); });
+  pathGroups.forEach(g => { g._lastFireByOrigin = undefined; });
   stations.forEach(s => { 
     s.machineStatus = 'IDLE'; s.machineTimer = 0; 
     s.partsCompleted = 0; s.currentAutoTarget = undefined;
-    if(s.type === 'node') { s.stock = s.initialStock !== undefined ? s.initialStock : 100; s.completed = s.startWet ? 1 : 0; }
+    if(s.type === 'node') { s.stock = s.initialStock !== undefined ? s.initialStock : 100; s.completed = s.initialCompleted !== undefined ? s.initialCompleted : (s.startWet ? 1 : 0); s.totalDroppedOff = 0; }
   });
   document.getElementById('dispSimTime').innerText = '0.0s'; document.getElementById('dispTotalParts').innerText = '0 pcs';
   calculateAnalyticalConclusion();
+}
+
+// The count driving a dropoff-threshold group's trigger: either a designated station's own tally, or the cell-wide total.
+function getGroupDropCount(g) {
+  const countStation = g.countStationId ? stations.find(s => s.id === g.countStationId) : null;
+  return countStation ? (countStation.totalDroppedOff || 0) : totalPartsCompleted;
 }
 
 function isGroupActive(leg) {
@@ -2573,51 +2592,50 @@ function isGroupActive(leg) {
   const g = pathGroups.find(x => x.id === leg.groupId);
   if (!g || g.triggerMode !== 'dropoffThreshold') return true;
   const th = Math.max(1, g.threshold || 1);
+  const count = getGroupDropCount(g);
   // One-time legs latch open once the count is reached so an async check can never miss it.
-  if (leg.pathType === 'oneshot') return totalPartsCompleted >= th;
-  return totalPartsCompleted > 0 && totalPartsCompleted % th === 0;
+  if (leg.pathType === 'oneshot') return count >= th;
+  // Fire exactly once per threshold crossing per fork point (keyed by origin station) - without this latch, a
+  // designated station that's bypassed while the group runs would never move past its own trigger count and the
+  // fork would stay open forever. Legs further down the group's own detour (different origins) are unaffected.
+  const firedAt = g._lastFireByOrigin && g._lastFireByOrigin[leg.fromStationId];
+  return count > 0 && count % th === 0 && firedAt !== count;
 }
 
-// A leg is "open" when the operator can actually do work on arrival.
+// A leg is "open" when the operator can actually do work on arrival. Nodes never block arrival - all of a
+// node's pickup/dropoff logic now lives on the leg that LEAVES it (see isLegOriginReady/applyLegOriginAction).
 function isLegDestinationOpen(leg, op) {
   const st = stations.find(s => s.id === leg.toStationId);
   if (!st) return false;
-  if (st.type === 'node') {
-    if (leg.nodeAction === 'pickupRaw') return !op.holdsPart && (st.stock || 0) > 0;
-    if (leg.nodeAction === 'dropoffDone') return !!op.holdsPart;
-    if (leg.nodeAction === 'pickupDone') return !op.holdsPart && (st.completed || 0) > 0;
-    return !!op.holdsPart || (st.stock || 0) > 0; // legacy/not-set: today's automatic behavior
-  }
+  if (st.type === 'node') return true;
   if (st.machineStatus === 'READY_UNLOAD') return true;
   if (st.machineStatus === 'IDLE') return !!op.holdsPart;
   return false;
 }
 
-// A leg's origin node (if any) must have what's needed before the operator can depart on it. Shares the same nodeAction setting used on arrival.
-// Skipped for node-to-node legs - the destination side (handleLegArrival/isLegDestinationOpen) already fully
-// governs those, and requiring the SAME condition at both ends of one leg would deadlock the operator.
+// A leg leaving a node must have what its nodeAction needs before the operator can depart on it.
+// Auto ('') and 'none' (pass-through) never block - they only do what's currently possible, or nothing.
 function isLegOriginReady(leg, op) {
-  if (!leg.nodeAction) return true;
   const st = stations.find(s => s.id === leg.fromStationId);
   if (!st || st.type !== 'node') return true;
-  const dest = stations.find(s => s.id === leg.toStationId);
-  if (dest && dest.type === 'node') return true;
   if (leg.nodeAction === 'pickupRaw') return !op.holdsPart && (st.stock || 0) > 0;
   if (leg.nodeAction === 'dropoffDone') return !!op.holdsPart;
   if (leg.nodeAction === 'pickupDone') return !op.holdsPart && (st.completed || 0) > 0;
-  return true;
+  return true; // '' (Auto) and 'none' (pass-through)
 }
 
-// Performs the origin node's pickup/dropoff right as the operator departs on this leg.
+// Performs the departing node's pickup/dropoff right as the operator leaves on this leg.
 function applyLegOriginAction(leg, op) {
-  if (!leg.nodeAction) return;
   const st = stations.find(s => s.id === leg.fromStationId);
   if (!st || st.type !== 'node') return;
-  const dest = stations.find(s => s.id === leg.toStationId);
-  if (dest && dest.type === 'node') return;
   if (leg.nodeAction === 'pickupRaw') { if (!op.holdsPart && st.stock > 0) { st.stock--; op.holdsPart = true; } }
-  else if (leg.nodeAction === 'dropoffDone') { if (op.holdsPart) { st.completed++; totalPartsCompleted++; op.holdsPart = false; } }
+  else if (leg.nodeAction === 'dropoffDone') { if (op.holdsPart) { st.completed++; st.totalDroppedOff = (st.totalDroppedOff || 0) + 1; totalPartsCompleted++; op.holdsPart = false; } }
   else if (leg.nodeAction === 'pickupDone') { if (!op.holdsPart && st.completed > 0) { st.completed--; op.holdsPart = true; } }
+  else if (leg.nodeAction === 'none') { /* pass through - never touches stock */ }
+  else { // '' (Auto): opportunistic drop off + pick up, never blocks departure
+    if (op.holdsPart) { st.completed++; st.totalDroppedOff = (st.totalDroppedOff || 0) + 1; totalPartsCompleted++; op.holdsPart = false; }
+    if (st.stock > 0) { st.stock--; op.holdsPart = true; }
+  }
 }
 
 function getLegPriority(leg) {
@@ -2661,7 +2679,7 @@ function simulateAutoLines(simDt) {
     } else {
       leg.autoElapsed += simDt;
       if (leg.autoElapsed >= autoTime) {
-        if (to.type === 'node') { to.completed++; totalPartsCompleted++; }
+        if (to.type === 'node') { to.completed++; to.totalDroppedOff = (to.totalDroppedOff || 0) + 1; totalPartsCompleted++; }
         else { to.machineStatus = 'RUNNING'; to.machineTimer = 0; to.currentAutoTarget = getStationAutoTarget(to); }
         leg.autoBusy = false;
       }
@@ -2679,24 +2697,7 @@ function startLeg(op) {
 // Shared arrival logic for a walked leg: node stock pickup/dropoff or station machine handoff.
 function handleLegArrival(op, leg, targetStation) {
   if (targetStation.type === 'node') {
-     if (leg.nodeAction === 'pickupRaw') {
-        if (op.holdsPart) advanceOperatorRoute(op); // already carrying a part - don't silently overwrite it
-        else if (targetStation.stock > 0) { targetStation.stock--; op.holdsPart = true; advanceOperatorRoute(op); }
-        else op.phase = 'WAIT_PICKUP';
-     } else if (leg.nodeAction === 'dropoffDone') {
-        if (op.holdsPart) { targetStation.completed++; totalPartsCompleted++; op.holdsPart = false; }
-        advanceOperatorRoute(op); // nothing to drop off here isn't worth waiting for
-     } else if (leg.nodeAction === 'pickupDone') {
-        if (op.holdsPart) advanceOperatorRoute(op); // already carrying a part - don't silently overwrite it
-        else if (targetStation.completed > 0) { targetStation.completed--; op.holdsPart = true; advanceOperatorRoute(op); }
-        else op.phase = 'WAIT_PICKUP';
-     } else {
-        let didSomething = false;
-        if (op.holdsPart) { targetStation.completed++; totalPartsCompleted++; op.holdsPart = false; didSomething = true; }
-        if (targetStation.stock > 0) { targetStation.stock--; op.holdsPart = true; didSomething = true; }
-        if (didSomething) advanceOperatorRoute(op);
-        else op.phase = 'WAIT_PICKUP';
-     }
+     advanceOperatorRoute(op); // nodes never block on arrival - pickup/dropoff happens on the leg leaving them
   } else {
      if (targetStation.machineStatus === 'RUNNING') {
         op.phase = 'WAIT_MACHINE';
@@ -2760,6 +2761,14 @@ function advanceOperatorRoute(op) {
 
   op.routeIndex = selected.idx;
   op.waitingFromStationId = null;
+  // Consume the group's threshold trigger at this fork point now that it's actually been used, so it releases on the next check.
+  if (selected.leg.groupId) {
+    const g = pathGroups.find(x => x.id === selected.leg.groupId);
+    if (g && g.triggerMode === 'dropoffThreshold') {
+      g._lastFireByOrigin = g._lastFireByOrigin || {};
+      g._lastFireByOrigin[selected.leg.fromStationId] = getGroupDropCount(g);
+    }
+  }
   applyLegOriginAction(selected.leg, op);
   startLeg(op);
 }
@@ -2952,12 +2961,13 @@ function draw(timestamp) {
     const zBaseSize = z.fontSize ? Math.max(8, z.fontSize) : Math.max(16, Math.min(32, Math.floor(z.w / 8)));
     const zLines = (z.name || '').split('\n');
     const titleSize = fitLabelFontSize(zLines, zBaseSize, z.w * 0.9, z.h * 0.85, 'bold');
-    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    
-    let zStartY = -((zLines.length * (titleSize * 1.1)) / 2);
-    
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
+    const zPad = 6 / camZoom;
+    let zStartY = lb.y + zPad;
+
     zLines.forEach(line => {
-      ctx.fillText(line.trim(), 0, zStartY);
+      ctx.fillText(line.trim(), lb.x + zPad, zStartY);
       zStartY += titleSize * 1.1;
     });
 
@@ -3097,7 +3107,7 @@ function draw(timestamp) {
     const estimateStHeight = (size) => {
       const sub = Math.max(4, size * 0.75);
       let h = nameLines.length * (size * 1.1);
-      h += st.type === 'station' ? (1 + sub) + (showsStatusRow ? (8 + sub) : 0) : (1 + sub);
+      h += st.type === 'station' ? (1 + sub) + (showsStatusRow ? (1 + sub) : 0) : (1 + sub);
       return h;
     };
     let titleSize = Math.max(8, Math.round(stBaseSize));
@@ -3134,14 +3144,15 @@ function draw(timestamp) {
     startY += 1; // Tight gap below title so subtext sits on the next line
 
     if (st.type === 'station') {
-      ctx.font = `700 ${subSize}px sans-serif`; ctx.fillStyle = isLightTheme ? '#475569' : 'rgba(255,255,255,0.9)';
-      const subText = `M:${st.manual}s  A:${st.auto}s`;
+      const manualProg = getManualProgressAt(st.id);
+      ctx.font = `700 ${subSize}px sans-serif`; ctx.fillStyle = manualProg ? manualProg.color : (isLightTheme ? '#475569' : 'rgba(255,255,255,0.9)');
+      const subText = manualProg ? `⏱ ${manualProg.remaining.toFixed(1)}s` : `M:${st.manual}s  A:${st.auto}s`;
       const subWidest = ctx.measureText(subText).width;
       const fitSubSize = subWidest > st.w * 0.85 ? subSize * (st.w * 0.85) / subWidest : subSize;
       ctx.font = `700 ${fitSubSize}px sans-serif`;
       ctx.fillText(subText, cx, startY);
       
-      startY += subSize + 8; // Move down for status
+      startY += subSize + 1; // Tight gap below subtext, same spacing as title->subtext
       
       if (st.machineStatus === 'RUNNING') {
         const target = st.currentAutoTarget !== undefined ? st.currentAutoTarget : st.auto;
@@ -3158,22 +3169,6 @@ function draw(timestamp) {
       const fitSubSize = subWidest > st.w * 0.85 ? subSize * (st.w * 0.85) / subWidest : subSize;
       ctx.font = `700 ${fitSubSize}px sans-serif`;
       ctx.fillText(subText, cx, startY);
-    }
-
-    if (st.type === 'station') {
-      const manualProg = getManualProgressAt(st.id);
-      const barW = st.w * 0.7, barH = 6, barX = cx - barW/2, barY = lb.y + lb.h - barH - 6;
-      if (manualProg) {
-        drawProgressBar(barX, barY, barW, barH, manualProg.pct, manualProg.color);
-        ctx.fillStyle = manualProg.color; ctx.font = `700 ${Math.max(9, Math.floor(subSize * 0.7))}px sans-serif`;
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(`MANUAL ${manualProg.remaining.toFixed(1)}s`, cx, barY - 2);
-        ctx.textBaseline = 'top';
-      } else if (st.machineStatus === 'RUNNING' && st.auto > 0) {
-        const target = st.currentAutoTarget !== undefined ? st.currentAutoTarget : st.auto;
-        const isCalibrating = st.currentAutoTarget !== undefined && st.currentAutoTarget > st.auto && st.machineTimer >= st.auto;
-        drawProgressBar(barX, barY, barW, barH, st.machineTimer / target, isCalibrating ? '#a855f7' : '#22c55e');
-      }
     }
 
     ctx.restore();
@@ -3233,6 +3228,34 @@ async function importWorkflowJSON(e) {
   reader.readAsText(file);
 }
 
+// Older layouts set nodeAction on the leg ARRIVING at a node; the current model only reads it from the leg
+// LEAVING a node. Relocate each legacy arrival-side action onto the next outgoing leg from that same node in
+// the same operator's route (wrapping around), unless that leg already has its own action set.
+function migrateNodeActionsToDeparture() {
+  const unmigrated = [];
+  operators.forEach(op => {
+    const route = op.route || [];
+    route.forEach((leg, idx) => {
+      if (!leg.nodeAction) return;
+      const fromSt = stations.find(s => s.id === leg.fromStationId);
+      const toSt = stations.find(s => s.id === leg.toStationId);
+      if (fromSt && fromSt.type === 'node') return; // already on a departing leg - nothing to migrate
+      if (!toSt || toSt.type !== 'node') return; // not a node-arrival action, leave untouched
+      const n = route.length;
+      let moved = false;
+      for (let k = 1; k <= n; k++) {
+        const next = route[(idx + k) % n];
+        if (next.fromStationId !== toSt.id) continue;
+        if (!next.nodeAction) { next.nodeAction = leg.nodeAction; moved = true; }
+        break;
+      }
+      delete leg.nodeAction;
+      if (!moved) unmigrated.push(`${op.name || op.id}: action at "${toSt.name}" could not be relocated`);
+    });
+  });
+  if (unmigrated.length) alert('Some node actions could not be auto-migrated to the new "leaving node" model and were cleared:\n' + unmigrated.join('\n'));
+}
+
 function applyLoadedLayoutJSON(text) {
     try {
       const p = JSON.parse(text);
@@ -3256,6 +3279,7 @@ function applyLoadedLayoutJSON(text) {
          if(st.initialStock === undefined) st.initialStock = 100;
          if(st.stock === undefined) st.stock = st.initialStock;
          if(st.completed === undefined) st.completed = 0;
+         if(st.type === 'node' && st.initialCompleted === undefined) st.initialCompleted = st.startWet ? 1 : 0;
          if(st.fontSize === undefined) st.fontSize = 18;
          if(st.rot === undefined) st.rot = 0;
          if(!st.shape) st.shape = 'rect';
@@ -3264,6 +3288,7 @@ function applyLoadedLayoutJSON(text) {
         if(!Array.isArray(st.ports)) st.ports = [];
         st.ports.forEach(p => { if (!p.type || p.type === 'inlet' || p.type === 'outlet') p.type = 'node'; });
       });
+      migrateNodeActionsToDeparture();
       zones.forEach(z => { if (z.rot === undefined) z.rot = 0; if (!z.shape) z.shape = 'rect'; });
       
       nodeCounter = stations.length + 1; resetSim(); renderOperatorSelect(); renderInspector(); renderPathGroups(); calculateAnalyticalConclusion();
