@@ -117,13 +117,6 @@
   .break-row input[type="time"], .break-row input[type="number"] { width: 100px; }
 
 
-  .paths-popover {
-    display: none; position: fixed; width: 280px;
-    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3); padding: 10px; z-index: 50; max-height: 70vh; overflow-y: auto;
-  }
-  .paths-popover.open { display: block; }
-  
   .scale-key {
     background: var(--bg-main); border: 1px solid var(--border); padding: 4px 8px;
     border-radius: 5px; font-size: 11px; font-weight: 700; color: var(--accent);
@@ -202,49 +195,45 @@
   </div>
   <div class="panel-body">
     
-    <div>
+    <div id="canvasToolSection" style="display:flex; flex-direction:column; min-height:0;">
       <div class="section-title">Canvas Tool</div>
       <div class="btn-grid">
         <button id="btnToolSelect" class="active" onclick="setTool('select')">Select / Move</button>
-        <button id="btnToolRoute" onclick="setTool('route')">Draw Path</button>
         <button onclick="openStationDesigner()">🎨 Station Designer</button>
-        <div style="position:relative; display:inline-block; width:100%;">
-          <button id="btnPathsToggle" onclick="togglePathsPopover(event)" style="width:100%;">🛤️ Paths</button>
-          <div id="pathsPopover" class="paths-popover">
-            <div style="border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 6px;">
-              <div class="section-title" style="display: flex; justify-content: space-between;">
-                <span>Active Operator</span>
-                <span style="display:flex; gap:4px;">
-                  <button onclick="addNewOperator()" style="font-size: 9px; padding: 1px 5px;">+ Add Op</button>
-                  <button onclick="deleteActiveOperator()" class="danger" style="font-size: 9px; padding: 1px 5px;" title="Delete active operator">✕ Del</button>
-                </span>
-              </div>
-              <div class="form-group">
-                <select id="operatorSelect" onchange="changeActiveOperator(this.value)"></select>
-              </div>
-              <div class="checkbox-group" style="margin-bottom:4px;"><input type="checkbox" id="chkHidePath" onchange="toggleActiveOperatorHidePath(this.checked)"><label for="chkHidePath">Hide path on canvas</label></div>
-              <button onclick="clearActiveOperatorRoute()" class="danger" style="width:100%; margin-bottom:4px;" title="Reset path for active operator">Clear Route</button>
-            </div>
-            <div id="path-manager-section" style="padding-bottom: 6px;">
-              <div class="section-title">Operator Path Steps</div>
-              <div id="pathLegsList" style="max-height: 20vh; overflow-y: auto;">
-                <p style="color: var(--text-muted); font-size: 11px;">No path steps drawn.</p>
-              </div>
-            </div>
-            <div id="path-group-section" style="border-top: 1px solid var(--border); padding-top: 6px;">
-              <div class="section-title" style="display: flex; justify-content: space-between;">
-                <span>Path Groups</span>
-                <button onclick="addPathGroup()" style="font-size: 9px; padding: 1px 5px;">+ Group</button>
-              </div>
-              <div id="pathGroupsList" style="max-height: 20vh; overflow-y: auto;"></div>
-            </div>
+      </div>
+      <button id="btnToolRoute" onclick="setTool('route')" style="width:100%; margin-top:6px;">🛤️ Paths</button>
+      <div id="pathToolPanel" style="display:none; flex-direction:column; flex:1; min-height:0; margin-top:6px;">
+        <div style="border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 6px;">
+          <div class="section-title" style="display: flex; justify-content: space-between;">
+            <span>Active Operator</span>
+            <span style="display:flex; gap:4px;">
+              <button onclick="addNewOperator()" style="font-size: 9px; padding: 1px 5px;">+ Add Op</button>
+              <button onclick="deleteActiveOperator()" class="danger" style="font-size: 9px; padding: 1px 5px;" title="Delete active operator">✕ Del</button>
+            </span>
+          </div>
+          <div class="form-group">
+            <select id="operatorSelect" onchange="changeActiveOperator(this.value)"></select>
+          </div>
+          <div class="checkbox-group" style="margin-bottom:4px;"><input type="checkbox" id="chkHidePath" onchange="toggleActiveOperatorHidePath(this.checked)"><label for="chkHidePath">Hide path on canvas</label></div>
+          <button onclick="clearActiveOperatorRoute()" class="danger" style="width:100%; margin-bottom:4px;" title="Reset path for active operator">Clear Route</button>
+        </div>
+        <div id="path-manager-section" style="display:flex; flex-direction:column; flex:1; min-height:60px; padding-bottom: 6px;">
+          <div class="section-title">Operator Path Steps</div>
+          <div id="pathLegsList" style="flex:1; min-height:0; overflow-y: auto;">
+            <p style="color: var(--text-muted); font-size: 11px;">No path steps drawn.</p>
           </div>
         </div>
+        <div id="path-group-section" style="display:flex; flex-direction:column; flex:1; min-height:60px; border-top: 1px solid var(--border); padding-top: 6px;">
+          <div class="section-title" style="display: flex; justify-content: space-between;">
+            <span>Path Groups</span>
+            <button onclick="addPathGroup()" style="font-size: 9px; padding: 1px 5px;">+ Group</button>
+          </div>
+          <div id="pathGroupsList" style="flex:1; min-height:0; overflow-y: auto;"></div>
+        </div>
       </div>
-      <div id="toolHint" class="hint-box" style="margin-top: 6px; display: none;"></div>
     </div>
 
-    <div style="border-top: 1px solid var(--border); padding-top: 6px;">
+    <div id="placeItemsSection" style="border-top: 1px solid var(--border); padding-top: 6px;">
       <div class="section-title">Place Items</div>
       <div class="btn-grid">
         <button onclick="openStationPicker()">📂 Station Library</button>
@@ -253,14 +242,14 @@
       <p style="font-size:10px; color:var(--text-muted); margin-top:5px;">Design station/zone shapes &amp; info in the Station Designer, then place them here.</p>
     </div>
 
-    <div id="inspector" style="border-top: 1px solid var(--border); padding-top: 6px; flex: 1 1 auto; min-height: 140px; overflow-y: auto;">
+    <div id="inspector" style="display:flex; flex-direction:column; border-top: 1px solid var(--border); padding-top: 6px; flex: 1 1 auto; min-height: 140px; overflow-y: auto;">
       <div class="section-title" id="inspector-header">Inspector</div>
       <div id="inspector-content">
         <p style="color: var(--text-muted); font-size: 11px;">Select a station or zone to edit.</p>
       </div>
     </div>
 
-    <div style="border-top: 1px solid var(--border); padding-top: 6px;">
+    <div id="environmentSetupSection" style="border-top: 1px solid var(--border); padding-top: 6px;">
       <div class="section-title">Environment Setup</div>
       <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
         <div class="form-group"><label>Walk Speed (ft/s)</label><input type="number" id="walkSpeed" value="4.0" step="0.5" min="0.5" max="15.0" onchange="updateGlobals()"></div>
@@ -269,7 +258,7 @@
       </div>
     </div>
 
-    <div style="border-top: 1px solid var(--border); padding-top: 6px;">
+    <div id="fileOperationsSection" style="border-top: 1px solid var(--border); padding-top: 6px;">
       <div class="section-title">File Operations</div>
       <div style="display:flex; gap: 6px;">
         <button onclick="saveWorkflowJSON()" style="flex:1;">Save</button>
@@ -703,23 +692,6 @@ function toggleSidebar(side) {
   else if (side === 'right') document.getElementById('results-panel').classList.toggle('collapsed');
   resizeCanvas();
 }
-function togglePathsPopover(e) {
-  e.stopPropagation();
-  const popover = document.getElementById('pathsPopover');
-  const willOpen = !popover.classList.contains('open');
-  popover.classList.toggle('open');
-  if (willOpen) {
-    const rect = document.getElementById('btnPathsToggle').getBoundingClientRect();
-    popover.style.top = (rect.bottom + 6) + 'px';
-    popover.style.left = rect.left + 'px';
-  }
-}
-document.addEventListener('click', (e) => {
-  const popover = document.getElementById('pathsPopover');
-  if (popover.classList.contains('open') && !popover.contains(e.target) && e.target.id !== 'btnPathsToggle') {
-    popover.classList.remove('open');
-  }
-});
 function toggleTheme() {
   isLightTheme = !isLightTheme;
   applyTheme();
@@ -739,11 +711,15 @@ function setTool(tool) {
   currentTool = tool;
   ['btnToolSelect', 'btnToolRoute'].forEach(id => document.getElementById(id).className = '');
   document.getElementById('btnTool' + tool.charAt(0).toUpperCase() + tool.slice(1)).className = 'active';
-  
-  const hint = document.getElementById('toolHint');
-  if (tool === 'route') { hint.style.display = 'block'; hint.innerText = 'Click a node to start, click to add joints, then click the destination node.'; canvas.style.cursor = 'pointer'; }
-  else { hint.style.display = 'none'; canvas.style.cursor = 'grab'; }
-  
+
+  canvas.style.cursor = tool === 'route' ? 'pointer' : 'grab';
+  document.getElementById('canvasToolSection').style.flex = tool === 'route' ? '1 1 auto' : '0 0 auto';
+  document.getElementById('pathToolPanel').style.display = tool === 'route' ? 'flex' : 'none';
+  document.getElementById('placeItemsSection').style.display = tool === 'route' ? 'none' : 'block';
+  document.getElementById('inspector').style.display = tool === 'route' ? 'none' : 'flex';
+  document.getElementById('environmentSetupSection').style.display = tool === 'route' ? 'none' : 'block';
+  document.getElementById('fileOperationsSection').style.display = tool === 'route' ? 'none' : 'block';
+
   activeRouteStartPort = null; activePathJoints = [];
 }
 
