@@ -91,7 +91,9 @@
   .sim-stats { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
   #timeline-bar { background: var(--bg-panel); border-bottom: 1px solid var(--border); padding: 4px 16px 8px; display: flex; align-items: center; gap: 10px; z-index: 9; }
-  #timelineClock { font-size: 11px; font-weight: 700; color: var(--accent); min-width: 48px; text-align: right; }
+  #timelineClock { font-size: 11px; font-weight: 700; color: var(--accent); width: 68px; text-align: center; padding: 2px 4px; border: 1px solid transparent; background: transparent; border-radius: 4px; font-family: inherit; }
+  #timelineClock:hover { border-color: var(--border); }
+  #timelineClock:focus { border-color: var(--accent); background: var(--bg-main); outline: none; }
   #timelineTrackWrap { flex: 1; position: relative; height: 18px; display: flex; align-items: center; }
   #timelineTrack { position: relative; width: 100%; height: 6px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
   #timelineFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: var(--accent); border-radius: 4px 0 0 4px; pointer-events: none; }
@@ -172,6 +174,32 @@
   .picker-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px; }
   .picker-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; text-align: center; }
   .picker-card:hover { border-color: var(--accent); background: var(--bg-subtle); }
+  /* Station Library: folder tiles at the top level, station tiles inside a folder */
+  .lib-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--border); }
+  .lib-toolbar input { flex:1 1 180px; min-width:0; padding:5px 8px; }
+  .lib-crumbs { flex:1 1 100%; display:flex; align-items:center; gap:6px; font-size:13px; font-weight:700; min-width:0; white-space:nowrap; }
+  .lib-crumbs a { color:var(--accent); cursor:pointer; text-decoration:none; }
+  .lib-crumbs a:hover { text-decoration:underline; }
+  .lib-crumbs .sep { color:var(--text-muted); font-weight:400; }
+  .lib-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:8px; }
+  .lib-folder { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:12px 10px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center; }
+  .lib-folder:hover { border-color:var(--accent); background:var(--bg-subtle); }
+  .lib-folder .icon { font-size:30px; line-height:1; }
+  .lib-folder .name { font-size:12px; font-weight:700; word-break:break-word; }
+  .lib-folder .count { font-size:10px; color:var(--text-muted); }
+  .lib-folder.unfiled .icon { opacity:.55; }
+  .lib-folder { position:relative; }
+  .lib-folder .tile-actions { position:absolute; top:4px; right:4px; display:flex; gap:2px; opacity:0; transition:opacity .1s; }
+  .lib-folder:hover .tile-actions { opacity:1; }
+  .lib-folder .tile-actions button { font-size:10px; padding:1px 4px; line-height:1.2; }
+  .lib-station { position:relative; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:8px 6px 6px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center; }
+  .lib-station:hover { border-color:var(--accent); background:var(--bg-subtle); }
+  .lib-station canvas { width:48px; height:48px; background:var(--bg-main); border-radius:4px; }
+  .lib-station .name { font-size:11px; font-weight:700; word-break:break-word; line-height:1.2; }
+  .lib-station .meta { font-size:9px; color:var(--text-muted); }
+  .lib-station .move { position:absolute; top:3px; right:3px; width:20px; height:18px; opacity:0; font-size:10px; padding:0; border:1px solid var(--border); border-radius:4px; background:var(--bg-panel); color:var(--text); cursor:pointer; }
+  .lib-station:hover .move, .lib-station .move:focus { opacity:1; }
+  .lib-empty { grid-column:1/-1; color:var(--text-muted); font-size:12px; padding:16px 4px; text-align:center; }
   .picker-card canvas { width: 60px; height: 60px; background: var(--bg-main); border-radius: 4px; }
 
   @media print {
@@ -251,10 +279,11 @@
 
     <div id="environmentSetupSection" style="border-top: 1px solid var(--border); padding-top: 6px;">
       <div class="section-title">Environment Setup</div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 6px;">
         <div class="form-group"><label>Walk Speed (ft/s)</label><input type="number" id="walkSpeed" value="4.0" step="0.5" min="0.5" max="15.0" onchange="updateGlobals()"></div>
         <div class="form-group"><label>Avail. Time (min)</label><input type="number" id="taktAvail" value="480" min="0" step="5" onchange="calculateAnalyticalConclusion()"></div>
         <div class="form-group"><label>Demand (pcs)</label><input type="number" id="taktDemand" value="100" min="0" step="1" onchange="calculateAnalyticalConclusion()"></div>
+        <div class="form-group"><label title="Operational Efficiency - Target Cycle Time = TAKT × OE%">OE (%)</label><input type="number" id="oePercent" value="85" min="1" max="100" step="1" onchange="calculateAnalyticalConclusion()"></div>
       </div>
     </div>
 
@@ -322,7 +351,8 @@
   </div>
 
   <div id="timeline-bar">
-    <span id="timelineClock">00:00</span>
+    <input id="timelineClock" type="text" value="00:00:00" title="Type a time and press Enter to jump there (HH:MM:SS, HH:MM, or e.g. 90s / 45m / 2h)"
+      onfocus="this.dataset.orig = this.value; this.select()" onkeydown="if(event.key==='Enter'){ this.blur(); } else if(event.key==='Escape'){ this.dataset.cancel='1'; this.blur(); }" onblur="onTimelineClockEntered(this)">
     <div id="timelineTrackWrap">
       <div id="timelineTrack" onmousedown="onTimelineTrackDown(event)">
         <div id="timelineFill"></div>
@@ -353,19 +383,11 @@
       <div class="kpi-sub">Manual Work + Walk Time</div>
     </div>
 
-    <div class="kpi-row">
-      <div class="kpi-card">
-        <div class="kpi-title">Pacing Constraint (MCT)</div>
-        <div class="kpi-val" style="color: var(--accent-orange); font-size:14px;" id="kpiBottleneck">No Route</div>
-        <div class="kpi-sub" id="kpiBottleneckSub">Max machine cycle time</div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-title">Transit Impact</div>
-        <div style="font-weight:700; font-size:14px; margin-top:4px;" id="kpiWalkDist">0.0 ft</div>
-        <div style="font-size:10px; color:var(--text-muted);">
-          <strong style="color:var(--accent);" id="kpiWalkRatio">0.0%</strong> of Cycle
-        </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Transit Impact</div>
+      <div style="font-weight:700; font-size:14px; margin-top:4px;" id="kpiWalkDist">0.0 ft</div>
+      <div style="font-size:10px; color:var(--text-muted);">
+        <strong style="color:var(--accent);" id="kpiWalkRatio">0.0%</strong> of Cycle
       </div>
     </div>
 
@@ -373,7 +395,13 @@
       <div class="kpi-title">TAKT Time</div>
       <div class="kpi-val" style="color: var(--accent);" id="kpiTakt">—</div>
       <div class="kpi-sub" id="kpiTaktEq">TAKT = Available Time ÷ Customer Demand</div>
+      <div class="kpi-sub" id="kpiTargetCT" style="font-weight:700; color:var(--text);">Target CT = TAKT × OE%</div>
       <div class="kpi-sub" id="kpiTaktStatus">Enter available time and demand</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-title">Operator Timers</div>
+      <div id="operatorTimers" style="font-size:10px; margin-top:4px; display:flex; flex-direction:column; gap:4px; max-height:180px; overflow-y:auto;"></div>
     </div>
 
     <div class="kpi-card" style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;">
@@ -431,7 +459,13 @@
       <div class="modal-title">Station Library</div>
       <button class="danger" onclick="closeStationPicker()">Close</button>
     </div>
-    <div id="stationPickerList" class="picker-list"></div>
+    <div class="lib-toolbar">
+      <div id="stationPickerCrumbs" class="lib-crumbs"></div>
+      <input type="text" id="stationPickerSearch" placeholder="🔍 Search all stations..." oninput="stationPickerSearchText = this.value; renderStationPicker()">
+      <span id="stationPickerActions" style="display:flex; gap:4px;"></span>
+    </div>
+    <div id="stationPickerList" class="lib-grid"></div>
+    <input type="file" id="stationFolderImportInput" accept=".json,application/json" style="display:none" onchange="importStationFolderFile(event)">
   </div>
 </div>
 
@@ -511,7 +545,6 @@
         <button id="dTool-triangle" onclick="setDesignerTool('triangle')">△ Triangle</button>
         <button id="dTool-freehand" onclick="setDesignerTool('freehand')">✏️ Freehand</button>
       </div>
-      <div id="designerHint" class="hint-box" style="margin-top:6px;">Drag a box on the grid to sketch a rectangle.</div>
       <div id="designerSnapHVRow" class="checkbox-group" style="display:none;">
         <input type="checkbox" id="designerSnapHV" onchange="designerSnapHV = this.checked">
         <label for="designerSnapHV" style="cursor:pointer;">Snap to Horizontal/Vertical</label>
@@ -522,7 +555,6 @@
 
       <div id="designerDimsPanel" style="border-top: 1px solid var(--border); padding-top: 8px; margin-top: 6px;">
         <div class="section-title">Shape Dimensions</div>
-        <div id="designerDimsPlaceholder" class="hint-box">Sketch a shape first.</div>
         <div id="designerDimsBoxView" style="display:none;">
           <div class="btn-grid">
             <div class="form-group"><label>Width (ft)</label><input type="text" inputmode="decimal" id="designerDimW" onchange="setPendingShapeDims('w', this.value)"></div>
@@ -597,6 +629,21 @@
 <script>
 let isLightTheme = true;
 const pixelsPerFoot = 20; 
+const MAX_ZOOM = 40; // 1 ft = 800 screen px at max zoom - enough to fill the view with a single foot
+// Light sub-foot grid (6" then 1") that fades in once a foot is big enough on screen to read it.
+function drawSubFootGrid(c, zoom, x0, y0, x1, y1) {
+  const ftPx = pixelsPerFoot * zoom;
+  const steps = [];
+  if (ftPx >= 120) steps.push(pixelsPerFoot / 2);
+  if (ftPx >= 480) steps.push(pixelsPerFoot / 12);
+  if (!steps.length) return;
+  c.save(); c.lineWidth = 0.5 / zoom; c.strokeStyle = isLightTheme ? '#e8edf4' : '#111a2c';
+  const step = steps[steps.length - 1];
+  for (let x = x0; x < x1; x += step) { c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y1); c.stroke(); }
+  for (let y = y0; y < y1; y += step) { c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.stroke(); }
+  c.restore();
+}
+
 let walkSpeedFt = 4.0;
 let simSpeedMultiplier = 2;
 
@@ -647,6 +694,8 @@ let draggingPathJoint = null;
 let currentMousePos = { x: 0, y: 0 }, hoveredPort = null, hoveredEdgeAdd = null;
 
 let isRunning = false, isSimActive = false, simTime = 0, totalPartsCompleted = 0;
+// "Completed Parts" display: every part currently sitting on a node's done pile, across the whole cell.
+function getDonePartsTotal() { return stations.reduce((sum, st) => sum + (st.type === 'node' ? (st.completed || 0) : 0), 0); }
 let shiftDurationSec = 24 * 3600;
 let breaks = []; // {id, name, startSec, durationSec}
 let suppressSimUI = false, isDraggingTimeline = false;
@@ -682,7 +731,7 @@ function screenToWorld(x, y) { return { x: (x - camX) / camZoom, y: (y - camY) /
 function zoomIn() { setZoom(camZoom * 1.2); }
 function zoomOut() { setZoom(camZoom / 1.2); }
 function setZoom(val) {
-  camZoom = Math.max(0.2, Math.min(val, 5));
+  camZoom = Math.max(0.2, Math.min(val, MAX_ZOOM));
   document.getElementById('zoomLabel').innerText = Math.round(camZoom * 100) + '%';
   draw(performance.now());
 }
@@ -742,6 +791,7 @@ function changeActiveOperator(id) { activeOperatorId = id; renderOperatorSelect(
 function getActiveOperator() { return operators.find(op => op.id === activeOperatorId) || operators[0]; }
 function clearActiveOperatorRoute() {
   const op = getActiveOperator(); if (op) op.route = [];
+  pruneOpenSpacePoints();
   activeRouteStartPort = null; activePathJoints = []; resetSim(); renderPathLegsList(); calculateAnalyticalConclusion();
 }
 function addNewOperator() {
@@ -843,12 +893,40 @@ function getCustomEdgePorts(st) {
   return result;
 }
 function getStationPorts(st) {
+  if (st.type === 'point') return [{ id: 'center', face: 'center', type: 'node', stationId: st.id, x: st.x + st.w / 2, y: st.y + st.h / 2 }];
   if (!st.ports) st.ports = [];
   if (st.shape === 'custom' && st.shapePoints && st.shapePoints.length >= 3) return [...getCustomEdgePorts(st), ...getCompassFacePorts(st)];
   return getCompassFacePorts(st);
 }
 // Finds the exact edge point under the cursor so a new port lands where clicked, not at an even-spacing slot.
+// Paths can start or end in open space: the end becomes a tiny 'point' item (a shared dot other legs can attach to).
+function createOpenSpacePoint(x, y) {
+  const size = pixelsPerFoot * 0.5;
+  const n = stations.filter(s => s.type === 'point').length + 1;
+  const pt = { id: 'node_' + Date.now() + Math.floor(Math.random() * 1000), name: `Point ${n}`, type: 'point', shape: 'circle',
+    x: x - size / 2, y: y - size / 2, w: size, h: size, rot: 0, color: '#38bdf8', ports: [] };
+  stations.push(pt);
+  return getStationPorts(pt)[0];
+}
+// Removes open-space points no longer used by any operator's path.
+function pruneOpenSpacePoints() {
+  const used = new Set(); operators.forEach(o => o.route.forEach(l => { used.add(l.fromStationId); used.add(l.toStationId); }));
+  stations = stations.filter(s => s.type !== 'point' || used.has(s.id));
+  selectedStationIds = selectedStationIds.filter(id => stations.some(s => s.id === id));
+}
+function finishRouteLeg(endPort) {
+  let start = activeRouteStartPort;
+  if (start.pendingPoint) start = createOpenSpacePoint(start.x, start.y);
+  getActiveOperator().route.push({
+    id: 'seg_' + Date.now(), fromStationId: start.stationId, fromPortId: start.id,
+    toStationId: endPort.stationId, toPortId: endPort.id, joints: [...activePathJoints], pathType: 'priority', frequency: 1, dropAction: 'none', pickAction: 'none'
+  });
+  activeRouteStartPort = null; activePathJoints = [];
+  renderPathLegsList(); renderOperatorSelect(); calculateAnalyticalConclusion();
+}
+
 function getStationEdgeAddTarget(st, mx, my) {
+  if (st.type === 'point') return null; // open-space points have a single centre port
   const pad = 10 / camZoom;
   if (st.shape === 'custom' && st.shapePoints && st.shapePoints.length >= 3) {
     const edges = getShapeEdgesWorld(st);
@@ -977,7 +1055,7 @@ canvas.addEventListener('wheel', (e) => {
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
     const worldX = (mouseX - camX) / camZoom, worldY = (mouseY - camY) / camZoom;
-    camZoom *= zoomAmount; camZoom = Math.max(0.2, Math.min(camZoom, 5));
+    camZoom *= zoomAmount; camZoom = Math.max(0.2, Math.min(camZoom, MAX_ZOOM));
     camX = mouseX - worldX * camZoom; camY = mouseY - worldY * camZoom;
     document.getElementById('zoomLabel').innerText = Math.round(camZoom * 100) + '%';
   }
@@ -987,6 +1065,9 @@ window.addEventListener('keydown', (e) => {
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT' || document.activeElement.tagName === 'TEXTAREA') return;
   
   if (e.code === 'Space') { e.preventDefault(); canvas.style.cursor = 'grabbing'; }
+  if (e.key === 'Enter' && currentTool === 'route' && activeRouteStartPort && activePathJoints.length) {
+    const last = activePathJoints.pop(); finishRouteLeg(createOpenSpacePoint(last.x, last.y)); return; // end at the last clicked spot
+  }
   if (e.key === 'Escape' || e.key === 'Enter') { activeRouteStartPort = null; activePathJoints = []; setTool('select'); }
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (selectedStationIds.length > 0) {
@@ -1029,6 +1110,19 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'Space' && currentTool === 'select') canvas.style.cursor = 'grab';
 });
 
+// Double-click in open space while drawing a path ends it right there.
+canvas.addEventListener('dblclick', (e) => {
+  if (currentTool !== 'route' || !activeRouteStartPort) return;
+  const r = canvas.getBoundingClientRect(); const w = screenToWorld(e.clientX - r.left, e.clientY - r.top);
+  if (findPortAt(w.x, w.y)) return;
+  // the two clicks of the double-click each added a joint here - drop them
+  const near = j => Math.hypot(j.x - w.x, j.y - w.y) < 6 / camZoom;
+  while (activePathJoints.length && near(activePathJoints[activePathJoints.length - 1])) activePathJoints.pop();
+  const s0 = activeRouteStartPort;
+  if (Math.hypot(s0.x - w.x, s0.y - w.y) < 6 / camZoom && !activePathJoints.length) return; // nothing drawn yet
+  finishRouteLeg(createOpenSpacePoint(w.x, w.y));
+});
+
 canvas.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   const wPos = screenToWorld(e.clientX - canvas.getBoundingClientRect().left, e.clientY - canvas.getBoundingClientRect().top);
@@ -1057,15 +1151,10 @@ canvas.addEventListener('mousedown', (e) => {
   if (currentTool === 'route') {
     const clickedPort = findPortAt(mx, my);
     if (!activeRouteStartPort && clickedPort) { activeRouteStartPort = clickedPort; activePathJoints = []; }
-    else if (activeRouteStartPort) {
-      if (clickedPort && clickedPort.stationId !== activeRouteStartPort.stationId) {
-        getActiveOperator().route.push({
-          id: 'seg_' + Date.now(), fromStationId: activeRouteStartPort.stationId, fromPortId: activeRouteStartPort.id,
-          toStationId: clickedPort.stationId, toPortId: clickedPort.id, joints: [...activePathJoints], pathType: 'priority', frequency: 1
-        });
-        activeRouteStartPort = null; activePathJoints = [];
-        renderPathLegsList(); renderOperatorSelect(); calculateAnalyticalConclusion();
-      } else if (!clickedPort) { activePathJoints.push({ x: mx, y: my }); }
+    else if (!activeRouteStartPort) { activeRouteStartPort = { pendingPoint: true, x: mx, y: my, id: null, stationId: null }; activePathJoints = []; } // start in open space
+    else {
+      if (clickedPort && clickedPort.stationId !== activeRouteStartPort.stationId) finishRouteLeg(clickedPort);
+      else if (!clickedPort) { activePathJoints.push({ x: mx, y: my }); }
     }
     return;
   }
@@ -1239,6 +1328,11 @@ function renderInspector() {
   if (selectedStationIds.length > 1) { header.innerText = `Multiple Selected (${selectedStationIds.length})`; container.innerHTML = '<button onclick="duplicateItem()" style="width:100%; margin-top:8px;">📋 Duplicate Selected</button>'; return; }
 
   const st = stations.find(s => s.id === selectedStationIds[0]);
+  if (st && st.type === 'point') {
+    header.innerText = 'Open-Space Point';
+    container.innerHTML = `<p style="font-size:11px; color:var(--text-muted);">A path end point in open space. Drag it to move; every path attached to it follows. Press Delete to remove it along with its paths. It's removed automatically when no paths use it.</p>`;
+    return;
+  }
   header.innerText = `Station Details`;
   
   container.innerHTML = `
@@ -1268,6 +1362,7 @@ function toggleZoneLock(id) { const z = zones.find(z => z.id === id); if (z) { z
 
 /* ---------- Station Templates (Station Designer) ---------- */
 function loadStationTemplates() {
+  loadStationFolders();
   try { const raw = localStorage.getItem('stationTemplates'); stationTemplates = raw ? JSON.parse(raw) : []; }
   catch (e) { stationTemplates = []; }
 }
@@ -1323,6 +1418,7 @@ function renderTemplateLibrary() {
   const isZone = designerKind === 'zone';
   const importBtn = document.getElementById('designerImportBtn');
   if (importBtn) importBtn.innerText = isZone ? 'Import Zone' : 'Import Station';
+  if (!isZone) { renderDesignerStationLibrary(list); return; }
   if (templates.length === 0) { list.innerHTML = `<p style="color:var(--text-muted); font-size:11px;">No ${isZone ? 'zone' : 'station'} templates yet. Sketch a shape and save it below.</p>`; return; }
   list.innerHTML = templates.map(t => `
     <div class="template-card">
@@ -1340,6 +1436,79 @@ function renderTemplateLibrary() {
     </div>
   `).join('');
   templates.forEach(t => { const c = document.getElementById('thumb_' + t.id); if (c) renderShapeThumbnail(c, t.shapePoints, t.color, t.name); });
+}
+
+// Station Designer's template library: same folder-tile browser as the Station Library on the Cell Designer,
+// but clicking a station opens it for editing, and each tile keeps its Copy / Export / Move / Delete actions.
+function openDesignerLibFolder(key) { designerLibFolder = key; designerLibSearchText = ''; renderTemplateLibrary(); }
+function exportStationFolder(folder) {
+  const items = stationTemplates.filter(t => folder === '__unfiled' ? !t.folder : t.folder === folder);
+  if (!items.length) { alert('This folder has no stations to export.'); return; }
+  const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (folder === '__unfiled' ? 'Unfiled' : folder).replace(/[^a-z0-9_\-]+/gi, '_') + '_stations.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+function onDesignerLibSearch(el) {
+  designerLibSearchText = el.value; renderTemplateLibrary();
+  const ne = document.getElementById('designerLibSearch'); if (ne) { ne.focus(); ne.setSelectionRange(ne.value.length, ne.value.length); }
+}
+function renderDesignerStationLibrary(list) {
+  const folders = getAllStationFolders();
+  if (designerLibFolder !== '__all' && designerLibFolder !== '__unfiled' && !folders.includes(designerLibFolder)) designerLibFolder = '__all';
+  const atRoot = designerLibFolder === '__all';
+  const q = designerLibSearchText.trim().toLowerCase();
+  const js = v => escHtml(JSON.stringify(v));
+  const typeLabel = t => t.type === 'node' ? 'Load/Unload' : 'Station';
+  const inFolder = key => stationTemplates.filter(t => key === '__unfiled' ? !t.folder : t.folder === key);
+  const folderLabel = designerLibFolder === '__unfiled' ? 'Unfiled' : designerLibFolder;
+  const matches = t => (t.name || '').toLowerCase().includes(q) || typeLabel(t).toLowerCase().includes(q) || (t.folder || '').toLowerCase().includes(q);
+
+  let html = `<div class="lib-toolbar" style="margin-bottom:8px;">
+    <div class="lib-crumbs">${atRoot ? '<span>📚 All Folders</span>' : `<a onclick="openDesignerLibFolder('__all')" title="Back to all folders">← All Folders</a><span class="sep">›</span><span style="overflow:hidden; text-overflow:ellipsis;">📁 ${escHtml(folderLabel)}</span>`}</div>
+    <input type="text" id="designerLibSearch" placeholder="${atRoot ? '🔍 Search all stations...' : '🔍 Search in ' + escHtml(folderLabel) + '...'}" value="${escHtml(designerLibSearchText)}" oninput="onDesignerLibSearch(this)">
+    <div style="display:flex; gap:4px; flex-wrap:wrap; width:100%;">${atRoot
+      ? `<button style="flex:1;" onclick="createStationFolder('designer')">+ New Folder</button><button style="flex:1;" onclick="startStationFolderImport('designer')" title="Import a folder or library file">📥 Import</button>`
+      : `<button onclick="startStationFolderImport('designer', ${js(designerLibFolder)})" title="Import stations into this folder">📥 Import</button><button onclick="exportStationFolder(${js(designerLibFolder)})" title="Download this folder to share">📤 Export</button>${designerLibFolder === '__unfiled' ? '' : `<button onclick="renameStationFolder(${js(designerLibFolder)})">Rename</button><button class="danger" onclick="deleteStationFolder(${js(designerLibFolder)})">Delete</button>`}`}</div>
+  </div>`;
+
+  const card = (t, showFolder) => `
+    <div class="template-card" style="cursor:pointer;" onclick="editTemplate('${t.id}')" title="Click to edit">
+      <canvas width="44" height="44" id="thumb_${t.id}"></canvas>
+      <div class="info">
+        <strong>${escHtml(t.name)}</strong>
+        <span style="font-size:10px; color:var(--text-muted);">${typeLabel(t)} · ${((t.w || 0) / pixelsPerFoot).toFixed(1)}x${((t.h || 0) / pixelsPerFoot).toFixed(1)}ft${showFolder ? ' · ' + escHtml(t.folder || 'Unfiled') : ''}</span>
+        <div class="actions" style="margin-top:4px;" onclick="event.stopPropagation()">
+          <button style="font-size:9px; padding:2px 5px;" onclick="duplicateTemplate('${t.id}')">Copy</button>
+          <button style="font-size:9px; padding:2px 5px;" onclick="exportSingleTemplate('${t.id}')">Export</button>
+          <select style="font-size:9px; padding:1px; max-width:72px;" title="Move to folder" onchange="moveTemplateToFolder('${t.id}', this.value)">
+            <option value="" disabled selected>📁 Move</option>
+            <option value="">Unfiled</option>
+            ${folders.filter(f => f !== t.folder).map(f => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('')}
+            <option value="__new">+ New folder...</option>
+          </select>
+          <button class="danger" style="font-size:9px; padding:2px 5px;" onclick="deleteTemplate('${t.id}')">Del</button>
+        </div>
+      </div>
+    </div>`;
+  let shown = [];
+  if (stationTemplates.length === 0 && folders.length === 0) {
+    html += '<p style="color:var(--text-muted); font-size:11px;">No station templates yet. Sketch a shape and save it.</p>';
+  } else if (atRoot && q) {
+    shown = stationTemplates.filter(matches).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    html += shown.length ? `<div style="display:flex; flex-direction:column; gap:6px;">${shown.map(t => card(t, true)).join('')}</div>` : `<div class="lib-empty">No stations match "${escHtml(designerLibSearchText)}".</div>`;
+  } else if (atRoot) {
+    const tile = (key, name) => folderTileHTML(key, name, inFolder(key).length, 'openDesignerLibFolder');
+    let tiles = folders.map(f => tile(f, f)).join('');
+    if (stationTemplates.some(t => !t.folder)) tiles += tile('__unfiled', 'Unfiled');
+    html += tiles ? `<div class="lib-grid" style="grid-template-columns:repeat(auto-fill, minmax(110px, 1fr));">${tiles}</div>` : '<div class="lib-empty">No folders yet - click + New Folder.</div>';
+  } else {
+    shown = inFolder(designerLibFolder).filter(t => !q || matches(t)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    html += shown.length ? `<div style="display:flex; flex-direction:column; gap:6px;">${shown.map(t => card(t, false)).join('')}</div>`
+      : `<div class="lib-empty">${q ? 'No stations in this folder match your search.' : 'This folder is empty. Use a station\'s 📁 Move menu to put it here, or save a new template while this folder is open.'}</div>`;
+  }
+  list.innerHTML = html;
+  shown.forEach(t => { const c = document.getElementById('thumb_' + t.id); if (c) renderShapeThumbnail(c, t.shapePoints, t.color); });
 }
 
 function editTemplate(id) {
@@ -1421,7 +1590,7 @@ function importTemplateLibrary(event) {
         imported++;
       });
       if (imported === 0) throw new Error('no valid templates');
-      if (isZone) saveZoneTemplatesToStorage(); else saveStationTemplatesToStorage();
+      if (isZone) saveZoneTemplatesToStorage(); else { stationTemplates.forEach(t => { if (t.folder && !stationFolders.includes(t.folder)) stationFolders.push(t.folder); }); saveStationFolders(); saveStationTemplatesToStorage(); }
       renderTemplateLibrary();
       alert(`Imported ${imported} ${isZone ? 'zone' : 'station'} template(s).`);
     } catch (e) { alert(`Invalid ${isZone ? 'zone' : 'station'} template library file.`); }
@@ -1444,8 +1613,6 @@ function setDesignerTool(tool) {
   document.getElementById('dTool-' + tool).className = 'active';
   designerDrawing = false; designerFreehandPoints = [];
   document.getElementById('designerSnapHVRow').style.display = tool === 'freehand' ? 'flex' : 'none';
-  const hint = document.getElementById('designerHint');
-  hint.innerText = tool === 'freehand' ? 'Click to place joints. Click the first joint (highlighted) to close, or press Enter.' : `Drag a box on the grid to sketch a ${tool}.`;
   drawDesigner();
   updateDesignerDimsPanel();
 }
@@ -1465,7 +1632,7 @@ function setDesignerZoom(val) {
   const rect = designerCanvas.getBoundingClientRect();
   const cx = rect.width / 2, cy = rect.height / 2;
   const worldX = (cx - designerCamX) / designerCamZoom, worldY = (cy - designerCamY) / designerCamZoom;
-  designerCamZoom = Math.max(0.2, Math.min(val, 5));
+  designerCamZoom = Math.max(0.2, Math.min(val, MAX_ZOOM));
   designerCamX = cx - worldX * designerCamZoom; designerCamY = cy - worldY * designerCamZoom;
   document.getElementById('designerZoomLabel').innerText = Math.round(designerCamZoom * 100) + '%';
   drawDesigner();
@@ -1519,10 +1686,10 @@ function updateDesignerDimsPanel() {
   const boxView = document.getElementById('designerDimsBoxView');
   const edgeView = document.getElementById('designerEdgeListView');
   if (!pendingShape) {
-    placeholder.style.display = 'block'; boxView.style.display = 'none'; edgeView.style.display = 'none';
+    if (placeholder) placeholder.style.display = 'block'; boxView.style.display = 'none'; edgeView.style.display = 'none';
     return;
   }
-  placeholder.style.display = 'none';
+  if (placeholder) placeholder.style.display = 'none';
   if (designerTool === 'freehand') {
     boxView.style.display = 'none'; edgeView.style.display = 'block';
     renderDesignerEdgeList();
@@ -1635,7 +1802,7 @@ designerCanvas.addEventListener('wheel', (e) => {
   const rect = designerCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
   const worldX = (mouseX - designerCamX) / designerCamZoom, worldY = (mouseY - designerCamY) / designerCamZoom;
-  designerCamZoom *= zoomAmount; designerCamZoom = Math.max(0.2, Math.min(designerCamZoom, 5));
+  designerCamZoom *= zoomAmount; designerCamZoom = Math.max(0.2, Math.min(designerCamZoom, MAX_ZOOM));
   designerCamX = mouseX - worldX * designerCamZoom; designerCamY = mouseY - worldY * designerCamZoom;
   document.getElementById('designerZoomLabel').innerText = Math.round(designerCamZoom * 100) + '%';
   drawDesigner();
@@ -1721,11 +1888,12 @@ function drawDesigner() {
   dctx.fillStyle = isLightTheme ? '#f1f5f9' : '#0a0f1d'; dctx.fillRect(0, 0, designerCanvas.width, designerCanvas.height);
   dctx.save(); dctx.translate(designerCamX, designerCamY); dctx.scale(designerCamZoom, designerCamZoom);
 
-  dctx.strokeStyle = isLightTheme ? '#e2e8f0' : '#152033'; dctx.lineWidth = 1 / designerCamZoom;
   const gridStartX = Math.floor((-designerCamX / designerCamZoom) / pixelsPerFoot) * pixelsPerFoot;
   const gridStartY = Math.floor((-designerCamY / designerCamZoom) / pixelsPerFoot) * pixelsPerFoot;
   const gridEndX = gridStartX + (designerCanvas.width / designerCamZoom) + pixelsPerFoot * 2;
   const gridEndY = gridStartY + (designerCanvas.height / designerCamZoom) + pixelsPerFoot * 2;
+  drawSubFootGrid(dctx, designerCamZoom, gridStartX, gridStartY, gridEndX, gridEndY);
+  dctx.strokeStyle = isLightTheme ? '#e2e8f0' : '#152033'; dctx.lineWidth = 1 / designerCamZoom;
   for (let x = gridStartX; x < gridEndX; x += pixelsPerFoot) { dctx.beginPath(); dctx.moveTo(x, gridStartY); dctx.lineTo(x, gridEndY); dctx.stroke(); }
   for (let y = gridStartY; y < gridEndY; y += pixelsPerFoot) { dctx.beginPath(); dctx.moveTo(gridStartX, y); dctx.lineTo(gridEndX, y); dctx.stroke(); }
 
@@ -1872,7 +2040,8 @@ function saveDesignerTemplate() {
     shapePoints: pendingShape.points, w: pendingShape.w, h: pendingShape.h
   };
   const idx = stationTemplates.findIndex(x => x.id === template.id);
-  if (idx >= 0) { stationTemplates[idx] = template; propagateTemplateToInstances(template); } else stationTemplates.push(template);
+  if (idx >= 0) { if (stationTemplates[idx].folder) template.folder = stationTemplates[idx].folder; stationTemplates[idx] = template; propagateTemplateToInstances(template); }
+  else { if (designerLibFolder !== '__all' && designerLibFolder !== '__unfiled') template.folder = designerLibFolder; stationTemplates.push(template); }
   editingTemplateId = template.id;
   saveStationTemplatesToStorage();
   renderTemplateLibrary();
@@ -1992,21 +2161,167 @@ function openEditZoneTemplateInDesigner(zoneId) {
 }
 
 /* ---------- Open Station picker (place a template onto the sim canvas) ---------- */
-function openStationPicker() {
-  const list = document.getElementById('stationPickerList');
-  if (stationTemplates.length === 0) {
-    list.innerHTML = '<p style="grid-column:1/-1; color:var(--text-muted); font-size:12px;">No station templates yet. Open the Station Designer to create one.</p>';
-  } else {
-    list.innerHTML = stationTemplates.map(t => `
-      <div class="picker-card" onclick="placeStationFromTemplate('${t.id}')">
-        <canvas width="60" height="60" id="pick_${t.id}"></canvas>
-        <strong style="font-size:12px;">${t.name}</strong>
-        <span style="font-size:10px; color:var(--text-muted);">${t.type === 'node' ? 'Load/Unload' : 'Station'}</span>
-      </div>
-    `).join('');
+// Station folders (e.g. one per cell). A template's folder is stored on the template itself (t.folder), so it
+// travels with library exports/imports; the folder list is also saved so empty folders persist.
+let stationFolders = [], stationPickerFolder = '__all', stationPickerSearchText = '';
+let designerLibFolder = '__all', designerLibSearchText = ''; // same folders, browsed separately in the Station Designer
+function refreshStationLibraries() { renderStationPicker(); if (typeof renderTemplateLibrary === 'function') renderTemplateLibrary(); }
+function loadStationFolders() { try { stationFolders = JSON.parse(localStorage.getItem('stationFolders') || '[]'); } catch (e) { stationFolders = []; } }
+function saveStationFolders() { try { localStorage.setItem('stationFolders', JSON.stringify(stationFolders)); } catch (e) {} }
+function getAllStationFolders() {
+  const set = new Set(stationFolders); stationTemplates.forEach(t => { if (t.folder) set.add(t.folder); });
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+function escHtml(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+function createStationFolder(where) {
+  const name = (prompt('New folder name (e.g. a cell name):') || '').trim();
+  if (!name) return;
+  if (!getAllStationFolders().includes(name)) { stationFolders.push(name); saveStationFolders(); }
+  if (where === 'designer') { designerLibFolder = name; designerLibSearchText = ''; } else stationPickerFolder = name;
+  refreshStationLibraries();
+}
+function renameStationFolder(oldName) {
+  const name = (prompt(`Rename folder "${oldName}" to:`, oldName) || '').trim();
+  if (!name || name === oldName) return;
+  stationFolders = stationFolders.filter(f => f !== oldName); if (!stationFolders.includes(name)) stationFolders.push(name);
+  stationTemplates.forEach(t => { if (t.folder === oldName) t.folder = name; });
+  saveStationFolders(); saveStationTemplatesToStorage();
+  if (stationPickerFolder === oldName) stationPickerFolder = name;
+  if (designerLibFolder === oldName) designerLibFolder = name;
+  refreshStationLibraries();
+}
+function deleteStationFolder(name) {
+  const n = stationTemplates.filter(t => t.folder === name).length;
+  if (!confirm(`Delete folder "${name}"?${n ? ` Its ${n} station(s) will move to Unfiled (they are not deleted).` : ''}`)) return;
+  stationFolders = stationFolders.filter(f => f !== name);
+  stationTemplates.forEach(t => { if (t.folder === name) delete t.folder; });
+  saveStationFolders(); saveStationTemplatesToStorage();
+  if (stationPickerFolder === name) stationPickerFolder = '__all';
+  if (designerLibFolder === name) designerLibFolder = '__all';
+  refreshStationLibraries();
+}
+function moveTemplateToFolder(id, folder) {
+  const t = stationTemplates.find(x => x.id === id); if (!t) return;
+  if (folder === '__new') {
+    const name = (prompt('New folder name:') || '').trim();
+    if (!name) { refreshStationLibraries(); return; }
+    if (!getAllStationFolders().includes(name)) { stationFolders.push(name); saveStationFolders(); }
+    folder = name;
   }
+  if (folder) t.folder = folder; else delete t.folder;
+  saveStationTemplatesToStorage(); refreshStationLibraries();
+}
+// Folder import: accepts a folder export (array of station templates), a full library export, or a single template.
+// Importing while a folder is open puts everything into that folder; from All Folders each station keeps its saved folder.
+let stationFolderImportTarget = null, stationFolderImportWhere = null;
+function startStationFolderImport(where, target) {
+  stationFolderImportWhere = where; stationFolderImportTarget = (target && target !== '__all' && target !== '__unfiled') ? target : null;
+  document.getElementById('stationFolderImportInput').click();
+}
+function importStationFolderFile(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      let data = JSON.parse(evt.target.result);
+      if (!Array.isArray(data)) data = Array.isArray(data.templates) ? data.templates : [data];
+      let imported = 0; const touched = new Set();
+      data.forEach(t => {
+        if (!t || !t.name || !Array.isArray(t.shapePoints)) return;
+        t = JSON.parse(JSON.stringify(t));
+        if (stationTemplates.some(x => x.id === t.id)) t.id = 'tpl_' + Date.now() + Math.floor(Math.random() * 100000);
+        if (stationFolderImportTarget) t.folder = stationFolderImportTarget;
+        if (t.folder) touched.add(t.folder);
+        stationTemplates.push(t); imported++;
+      });
+      if (!imported) throw new Error('none');
+      touched.forEach(f => { if (!stationFolders.includes(f)) stationFolders.push(f); });
+      saveStationFolders(); saveStationTemplatesToStorage();
+      // Open the imported folder if everything landed in one
+      if (touched.size === 1) { const f = [...touched][0]; if (stationFolderImportWhere === 'designer') designerLibFolder = f; else stationPickerFolder = f; }
+      refreshStationLibraries();
+      alert(`Imported ${imported} station${imported === 1 ? '' : 's'}${touched.size ? ' into ' + [...touched].map(f => `"${f}"`).join(', ') : ''}.`);
+    } catch (e) { alert('That file is not a valid station folder or library export.'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+// Folder tile used on the top level of both library views (click to open; hover for rename/export/delete).
+function folderTileHTML(key, name, count, openFn) {
+  const js = v => escHtml(JSON.stringify(v));
+  const real = key !== '__unfiled';
+  return `<div class="lib-folder ${real ? '' : 'unfiled'}" onclick="${openFn}(${js(key)})" title="Open ${escHtml(name)}">
+    <div class="tile-actions" onclick="event.stopPropagation()">
+      ${real ? `<button title="Rename folder" onclick="renameStationFolder(${js(key)})">✎</button>` : ''}
+      <button title="Export folder" onclick="exportStationFolder(${js(key)})">⤓</button>
+      ${real ? `<button class="danger" title="Delete folder" onclick="deleteStationFolder(${js(key)})">✕</button>` : ''}
+    </div>
+    <div class="icon">📁</div><div class="name">${escHtml(name)}</div><div class="count">${count} station${count === 1 ? '' : 's'}</div></div>`;
+}
+
+function openStationPicker() {
   document.getElementById('stationPickerOverlay').style.display = 'flex';
-  stationTemplates.forEach(t => { const c = document.getElementById('pick_' + t.id); if (c) renderShapeThumbnail(c, t.shapePoints, t.color, t.name); });
+  const search = document.getElementById('stationPickerSearch'); if (search) search.value = stationPickerSearchText;
+  renderStationPicker();
+}
+function openStationFolder(key) { stationPickerFolder = key; stationPickerSearchText = ''; const se = document.getElementById('stationPickerSearch'); if (se) se.value = ''; renderStationPicker(); }
+function renderStationPicker() {
+  const list = document.getElementById('stationPickerList'), crumbs = document.getElementById('stationPickerCrumbs'), actions = document.getElementById('stationPickerActions');
+  const folders = getAllStationFolders();
+  if (stationPickerFolder !== '__all' && stationPickerFolder !== '__unfiled' && !folders.includes(stationPickerFolder)) stationPickerFolder = '__all';
+  const atRoot = stationPickerFolder === '__all';
+  const q = stationPickerSearchText.trim().toLowerCase();
+  const js = v => escHtml(JSON.stringify(v));
+  const typeLabel = t => t.type === 'node' ? 'Load/Unload' : 'Station';
+  const inFolder = key => stationTemplates.filter(t => key === '__unfiled' ? !t.folder : t.folder === key);
+
+  // Header: breadcrumb + context actions
+  const folderLabel = stationPickerFolder === '__unfiled' ? 'Unfiled' : stationPickerFolder;
+  crumbs.innerHTML = atRoot ? `<span>📚 All Folders</span>`
+    : `<a onclick="openStationFolder('__all')" title="Back to all folders">← All Folders</a><span class="sep">›</span><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📁 ${escHtml(folderLabel)}</span>`;
+  const se = document.getElementById('stationPickerSearch');
+  if (se) se.placeholder = atRoot ? '🔍 Search all stations...' : `🔍 Search in ${folderLabel}...`;
+  actions.innerHTML = atRoot
+    ? `<button onclick="createStationFolder()" title="Create a folder (e.g. one per cell)">+ New Folder</button><button onclick="startStationFolderImport('picker')" title="Import a folder or library file">📥 Import</button>`
+    : `<button onclick="startStationFolderImport('picker', ${js(stationPickerFolder)})" title="Import stations into this folder">📥 Import</button><button onclick="exportStationFolder(${js(stationPickerFolder)})" title="Download this folder to share">📤 Export</button>`
+      + (stationPickerFolder === '__unfiled' ? '' : `<button onclick="renameStationFolder(${js(stationPickerFolder)})">Rename</button><button class="danger" onclick="deleteStationFolder(${js(stationPickerFolder)})">Delete</button>`);
+
+  if (stationTemplates.length === 0 && folders.length === 0) {
+    list.innerHTML = '<div class="lib-empty">No station templates yet. Open the Station Designer to create one.</div>';
+    return;
+  }
+
+  const stationTile = (t, showFolder) => `
+    <div class="lib-station" onclick="placeStationFromTemplate('${t.id}')" title="Click to place ${escHtml(t.name)}">
+      <select class="move" title="Move to folder" onclick="event.stopPropagation()" onchange="moveTemplateToFolder('${t.id}', this.value)">
+        <option value="" disabled selected>📁 Move to...</option>
+        <option value="">Unfiled</option>
+        ${folders.filter(f => f !== t.folder).map(f => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('')}
+        <option value="__new">+ New folder...</option>
+      </select>
+      <canvas width="48" height="48" id="pick_${t.id}"></canvas>
+      <div class="name">${escHtml(t.name)}</div>
+      <div class="meta">${typeLabel(t)}${showFolder ? ' · ' + escHtml(t.folder || 'Unfiled') : ''}</div>
+    </div>`;
+  const matches = t => (t.name || '').toLowerCase().includes(q) || typeLabel(t).toLowerCase().includes(q) || (t.folder || '').toLowerCase().includes(q);
+
+  let shown = [], html = '';
+  if (atRoot && q) {
+    // Searching from the top level looks through every folder.
+    shown = stationTemplates.filter(matches).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    html = shown.length ? shown.map(t => stationTile(t, true)).join('') : `<div class="lib-empty">No stations match "${escHtml(stationPickerSearchText)}".</div>`;
+  } else if (atRoot) {
+    const tile = (key, name) => folderTileHTML(key, name, inFolder(key).length, 'openStationFolder');
+    html = folders.map(f => tile(f, f)).join('');
+    if (stationTemplates.some(t => !t.folder)) html += tile('__unfiled', 'Unfiled');
+    if (!html) html = '<div class="lib-empty">No folders yet - click + New Folder.</div>';
+  } else {
+    shown = inFolder(stationPickerFolder).filter(t => !q || matches(t)).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    html = shown.length ? shown.map(t => stationTile(t, false)).join('')
+      : `<div class="lib-empty">${q ? `No stations in this folder match "${escHtml(stationPickerSearchText)}".` : 'This folder is empty. Open another folder and use a station\'s 📁 button (top-right corner on hover) to move it here.'}</div>`;
+  }
+  list.innerHTML = html;
+  shown.forEach(t => { const c = document.getElementById('pick_' + t.id); if (c) renderShapeThumbnail(c, t.shapePoints, t.color); }); // name is shown under the tile
 }
 function closeStationPicker() { document.getElementById('stationPickerOverlay').style.display = 'none'; }
 function placeStationFromTemplate(templateId) {
@@ -2078,7 +2393,7 @@ function renderPathLegsList() {
          ondragstart="onLegDragStart(event, ${i})" ondragover="onLegDragOver(event)"
          ondrop="onLegDrop(event, ${i})" ondragend="onLegDragEnd()">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span><span title="Drag to reorder" style="cursor:grab;">⠿</span> <strong>${stepNumbers[i]}.</strong> ${(stations.find(s => s.id === leg.fromStationId)?.name || 'N/A').split('\n')[0]} &rarr; ${(stations.find(s => s.id === leg.toStationId)?.name || 'N/A').split('\n')[0]}</span>
+        <span><span title="Drag to reorder" style="cursor:grab;">⠿</span> <strong>${stepNumbers[i] !== null ? stepNumbers[i] + '.' : '↻'}</strong> ${(stations.find(s => s.id === leg.fromStationId)?.name || 'N/A').split('\n')[0]} &rarr; ${(stations.find(s => s.id === leg.toStationId)?.name || 'N/A').split('\n')[0]}</span>
         <button onclick="removePathLeg('${op.id}', ${i})" class="danger" style="font-size: 9px; padding: 1px 4px;">✕</button>
       </div>
       <div style="display:flex; gap:4px; align-items:center; margin-top:2px;">
@@ -2099,16 +2414,14 @@ function renderPathLegsList() {
           ${pathGroups.map(g => `<option value="${g.id}" ${leg.groupId === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}
         </select>
       </div>` : ''}
-      ${stations.find(s => s.id === leg.fromStationId)?.type === 'node' ? `<div style="display:flex; gap:4px; align-items:center; margin-top:2px;">
-        <label style="font-size:9px;">Leaving node:</label>
-        <select style="font-size:10px; padding:2px; flex:1;" onchange="updatePathLeg('${op.id}', ${i}, 'nodeAction', this.value)">
-          <option value="" ${!leg.nodeAction ? 'selected' : ''}>Auto (drop off done + pick up raw)</option>
-          <option value="dropoffDone" ${leg.nodeAction === 'dropoffDone' ? 'selected' : ''}>Drop off done parts only</option>
-          <option value="pickupRaw" ${leg.nodeAction === 'pickupRaw' ? 'selected' : ''}>Pick up raw stock only</option>
-          <option value="pickupDone" ${leg.nodeAction === 'pickupDone' ? 'selected' : ''}>Pick up done parts only</option>
-          <option value="none" ${leg.nodeAction === 'none' ? 'selected' : ''}>Pass through (no action)</option>
-        </select>
-      </div>` : ''}
+      ${stations.find(s => s.id === leg.fromStationId)?.type === 'node' ? (() => { const na = getLegNodeActions(leg); return `<div style="display:flex; gap:4px; align-items:center; margin-top:2px;" title="Leaving this node the operator drops off first, then picks up (one part in hand at a time). The operator waits at the node until both selected actions are possible.">
+        <label style="font-size:9px; min-width:46px;">Drop off:</label>
+        <select style="font-size:10px; padding:2px; flex:1;" onchange="updateLegNodeAction('${op.id}', ${i}, 'drop', this.value)">${nodeActionOptionsHTML(na.drop)}</select>
+      </div>
+      <div style="display:flex; gap:4px; align-items:center; margin-top:2px;">
+        <label style="font-size:9px; min-width:46px;">Pick up:</label>
+        <select style="font-size:10px; padding:2px; flex:1;" onchange="updateLegNodeAction('${op.id}', ${i}, 'pick', this.value)">${nodeActionOptionsHTML(na.pick)}</select>
+      </div>`; })() : ''}
     </div>
   `).join('');
 }
@@ -2171,8 +2484,36 @@ function renderPathGroups() {
     </div>
   `).join('');
 }
+// Node actions: each leg leaving a node has a Drop off and a Pick up setting, both chosen from the same list.
+// Order at the node is always drop off first, then pick up (operator carries one part at a time).
+const NODE_ACTION_OPTIONS = [
+  { v: 'none',        label: 'Nothing' },
+  { v: 'raw',         label: 'Raw part' },
+  { v: 'done',        label: 'Done part' },
+  { v: 'any',         label: 'Any part' }
+];
+function nodeActionOptionsHTML(sel) { return NODE_ACTION_OPTIONS.map(o => `<option value="${o.v}" ${o.v === sel ? 'selected' : ''}>${o.label}</option>`).join(''); }
+// Resolves a leg's drop/pick settings, translating the older single 'nodeAction' field when the new ones aren't set.
+function getLegNodeActions(leg) {
+  const norm = v => (v || 'none').replace('IfAvail', ''); // older saves may contain 'IfAvail' variants - treat as required
+  if (leg.dropAction !== undefined || leg.pickAction !== undefined) return { drop: norm(leg.dropAction), pick: norm(leg.pickAction) };
+  switch (leg.nodeAction) {
+    case 'dropoffDone': return { drop: 'any', pick: 'none' };
+    case 'pickupRaw':   return { drop: 'none', pick: 'raw' };
+    case 'pickupDone':  return { drop: 'none', pick: 'done' };
+    case 'none':        return { drop: 'none', pick: 'none' };
+    default:            return { drop: 'any', pick: 'raw' }; // legacy 'Auto'
+  }
+}
+function updateLegNodeAction(opId, i, which, val) {
+  const op = operators.find(o => o.id === opId); const leg = op && op.route[i]; if (!leg) return;
+  const na = getLegNodeActions(leg); na[which] = val;
+  leg.dropAction = na.drop; leg.pickAction = na.pick; delete leg.nodeAction;
+  renderPathLegsList(); calculateAnalyticalConclusion();
+}
+
 function updatePathLeg(opId, i, prop, val) { const op = operators.find(o => o.id === opId); if (op && op.route[i]) { op.route[i][prop] = val; renderPathLegsList(); calculateAnalyticalConclusion(); } }
-function removePathLeg(opId, i) { const op = operators.find(o => o.id === opId); if (op) { op.route.splice(i, 1); renderPathLegsList(); renderOperatorSelect(); calculateAnalyticalConclusion(); } }
+function removePathLeg(opId, i) { const op = operators.find(o => o.id === opId); if (op) { op.route.splice(i, 1); pruneOpenSpacePoints(); renderPathLegsList(); renderOperatorSelect(); calculateAnalyticalConclusion(); } }
 
 function updateGlobals() {
   walkSpeedFt = parseFloat(document.getElementById('walkSpeed').value) || 4.0;
@@ -2191,6 +2532,7 @@ function getRouteStepNumbers(route) {
   // Each path group gets its own independent step-number sequence (starting at 1), instead of one continuous count across the whole route.
   const counters = {};
   return route.map(leg => {
+    if (leg.pathType === 'reactive') return null; // reactive (dotted) lines don't get step numbers
     const key = leg.groupId || '';
     let c = counters[key];
     if (!c) { c = { step: 1, lastFrom: leg.fromStationId }; counters[key] = c; return c.step; }
@@ -2302,28 +2644,65 @@ function updateTaktDisplay(operatorCycle) {
   if (availMin <= 0 || demand <= 0) {
     el.innerText = '—';
     eq.innerText = 'TAKT = Available Time ÷ Customer Demand';
+    const tEl0 = document.getElementById('kpiTargetCT'); if (tEl0) tEl0.innerText = 'Target CT = TAKT × OE%';
     status.innerText = 'Enter available time and demand';
     status.style.color = 'var(--text-muted)';
     return;
   }
   const takt = (availMin * 60) / demand;
+  const oe = Math.max(0, parseFloat(document.getElementById('oePercent').value) || 100);
+  const targetCT = takt * oe / 100;
   el.innerText = `${takt.toFixed(1)} s/pc`;
   eq.innerText = `TAKT = ${availMin} min × 60 ÷ ${demand} pcs`;
+  const tEl = document.getElementById('kpiTargetCT');
+  if (tEl) tEl.innerText = `Target CT = ${takt.toFixed(1)}s × ${oe}% OE = ${targetCT.toFixed(1)} s/pc`;
   if (operatorCycle > 0) {
-    const meets = operatorCycle <= takt;
-    status.innerText = meets ? `OCT ${operatorCycle.toFixed(1)}s meets TAKT` : `OCT ${operatorCycle.toFixed(1)}s over TAKT by ${(operatorCycle - takt).toFixed(1)}s`;
+    const meets = operatorCycle <= targetCT;
+    status.innerText = meets ? `OCT ${operatorCycle.toFixed(1)}s meets Target CT` : `OCT ${operatorCycle.toFixed(1)}s over Target CT by ${(operatorCycle - targetCT).toFixed(1)}s`;
     status.style.color = meets ? 'var(--accent-green)' : 'var(--accent-red)';
   } else {
-    status.innerText = 'Draw a route to compare OCT vs TAKT';
+    status.innerText = 'Draw a route to compare OCT vs Target CT';
     status.style.color = 'var(--text-muted)';
   }
 }
 
+const OPERATOR_WAIT_PHASES = new Set(['WAIT_FORK', 'WAIT_MACHINE', 'WAIT_PICKUP', 'WAIT_COUPLED']);
+function fmtDur(sec) { sec = Math.max(0, sec || 0); const m = Math.floor(sec / 60), s = sec - m * 60; return m > 0 ? `${m}:${s.toFixed(0).padStart(2, '0')}` : `${s.toFixed(1)}s`; }
+function renderOperatorTimers() {
+  const c = document.getElementById('operatorTimers'); if (!c) return;
+  const ops = operators.filter(o => o.route.length);
+  if (!ops.length) { c.innerHTML = '<span style="color:var(--text-muted);">No operator paths yet.</span>'; return; }
+  const onBreak = isSimActive && isSimTimeOnBreak(simTime);
+  c.innerHTML = ops.map(op => {
+    const leg = op.route[op.routeIndex]; const nm = id => ((stations.find(s => s.id === id) || {}).name || '').split('\n')[0];
+    let state = 'Idle', where = '', color = 'var(--text-muted)';
+    if (isSimActive) {
+      if (onBreak) { state = 'On break'; color = '#f97316'; }
+      else if (op.phase === 'WALKING') { state = 'Walking'; where = nm(leg?.toStationId); color = 'var(--accent)'; }
+      else if (op.phase === 'RETURNING') { state = 'Returning'; where = 'to start'; color = 'var(--accent)'; }
+      else if (op.phase === 'MANUAL_WORK') { state = 'Working'; where = nm(leg?.toStationId); color = 'var(--accent-green)'; }
+      else if (op.phase === 'WAIT_COUPLED') { state = 'Waiting (coupled)'; where = nm(leg?.toStationId); color = 'var(--accent-red)'; }
+      else if (op.phase === 'WAIT_MACHINE') { state = 'Waiting on machine'; where = nm(leg?.toStationId); color = 'var(--accent-red)'; }
+      else if (op.phase === 'WAIT_FORK' || op.phase === 'WAIT_PICKUP') { state = op.nodeDropDoneLegId ? 'Waiting to pick up' : 'Waiting'; where = nm(op.waitingFromStationId || leg?.toStationId); color = 'var(--accent-red)'; }
+    }
+    const waiting = isSimActive && !onBreak && OPERATOR_WAIT_PHASES.has(op.phase);
+    const pct = simTime > 0 ? Math.round((op.totalWait || 0) / simTime * 100) : 0;
+    return `<div style="border-left:3px solid ${op.color}; padding-left:5px;">
+      <div style="display:flex; justify-content:space-between; gap:6px;"><strong>${op.name}</strong>
+        <strong style="color:${waiting ? 'var(--accent-red)' : 'var(--text-muted)'}; font-variant-numeric:tabular-nums;">${waiting ? '⏳ ' + fmtDur(op.curWait) : '—'}</strong></div>
+      <div style="display:flex; justify-content:space-between; gap:6px; color:var(--text-muted);">
+        <span><span style="color:${color};">${state}</span>${where ? ' · ' + where : ''}</span>
+        <span style="font-variant-numeric:tabular-nums;" title="Total time spent waiting this run">Σ ${fmtDur(op.totalWait)} (${pct}%)</span></div>
+    </div>`;
+  }).join('');
+}
+
 function renderInventoryTracker() {
+  renderOperatorTimers();
   const c = document.getElementById('inventoryTracker');
   if (!c) return;
   if (stations.length === 0) { c.innerHTML = '<span style="color:var(--text-muted);">No stations yet.</span>'; return; }
-  c.innerHTML = stations.map(st => {
+  c.innerHTML = stations.filter(st => st.type !== 'point').map(st => {
     const nm = (st.name || 'Station').split('\n')[0];
     if (st.type === 'node') return `<div style="display:flex; justify-content:space-between; gap:6px;"><span>${nm}</span><strong style="color:var(--accent);">${st.stock !== undefined ? st.stock : 0} raw · ${st.completed || 0} done</strong></div>`;
     const status = st.machineStatus || 'IDLE';
@@ -2338,7 +2717,7 @@ function calculateAnalyticalConclusion() {
   renderInventoryTracker();
   if (stations.length === 0 || !op || op.route.length === 0) {
     document.getElementById('kpiOpCycle').innerText = '0.0 s'; document.getElementById('kpiWalkDist').innerText = '0.0 ft';
-    document.getElementById('kpiWalkRatio').innerText = '0.0%'; document.getElementById('kpiBottleneck').innerText = 'No Route';
+    document.getElementById('kpiWalkRatio').innerText = '0.0%';
     updateTaktDisplay(0);
     return;
   }
@@ -2375,12 +2754,6 @@ function calculateAnalyticalConclusion() {
   document.getElementById('kpiWalkDist').innerText = `${walkDist.toFixed(1)} ft`;
   document.getElementById('kpiWalkRatio').innerText = operatorCycle > 0 ? `${((walkTime / operatorCycle) * 100).toFixed(1)}%` : '0.0%';
   
-  if (operatorCycle >= maxCycleTime) {
-    document.getElementById('kpiBottleneck').innerText = 'Operator Bound'; document.getElementById('kpiBottleneckSub').innerText = `Manual tasks limit throughput`;
-  } else if (pacingName) {
-    document.getElementById('kpiBottleneck').innerText = `${pacingName} (${maxCycleTime}s)`; document.getElementById('kpiBottleneckSub').innerText = pacingSub;
-  }
-
   updateTaktDisplay(operatorCycle);
 }
 
@@ -2448,6 +2821,7 @@ async function exportWorkflowJSON() {
   const data = { stations, zones, operators, walkSpeedFt, pathGroups,
     taktAvailMin: parseFloat(document.getElementById('taktAvail').value) || 0,
     taktDemand: parseFloat(document.getElementById('taktDemand').value) || 0,
+    oePercent: parseFloat(document.getElementById('oePercent').value) || 100,
     shiftDurationSec, breaks };
   const jsonStr = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -2473,6 +2847,7 @@ async function saveWorkflowJSON() {
   const data = { stations, zones, operators, walkSpeedFt, pathGroups,
     taktAvailMin: parseFloat(document.getElementById('taktAvail').value) || 0,
     taktDemand: parseFloat(document.getElementById('taktDemand').value) || 0,
+    oePercent: parseFloat(document.getElementById('oePercent').value) || 100,
     shiftDurationSec, breaks };
   const jsonStr = JSON.stringify(data, null, 2);
   try {
@@ -2604,12 +2979,13 @@ function toggleSim() {
 
 // Places an operator at its route's start station and hands off to advanceOperatorRoute to find the first real (non-auto) leg.
 function startOperatorAtRouteStart(op) {
-  op.routeIndex = 0; op.cyclesCompleted = 0; op.holdsPart = false; op.waitingFromStationId = null; op.phase = 'WALKING';
+  op.curWait = 0; op.totalWait = 0;
+  op.routeIndex = 0; op.cyclesCompleted = 0; op.holdsPart = false; op.heldType = null; op.nodeDropDoneLegId = null; op.returnPath = null; op.waitingFromStationId = null; op.phase = 'WALKING';
   if (op.route.length === 0) return;
   const firstLeg = op.route[0];
   const p1 = getPortCoords(firstLeg.fromStationId, firstLeg.fromPortId);
   op.x = p1.x; op.y = p1.y;
-  op.waitingFromStationId = firstLeg.fromStationId; op.phase = 'WAIT_FORK';
+  op.waitingFromStationId = firstLeg.fromStationId; op.phase = 'WAIT_FORK'; op.waitSince = simTime;
   advanceOperatorRoute(op);
 }
 
@@ -2636,7 +3012,7 @@ function resetSim() {
     s.partsCompleted = 0; s.currentAutoTarget = undefined;
     if(s.type === 'node') { s.stock = s.initialStock !== undefined ? s.initialStock : 100; s.completed = s.initialCompleted !== undefined ? s.initialCompleted : (s.startWet ? 1 : 0); s.totalDroppedOff = 0; }
   });
-  document.getElementById('dispSimTime').innerText = '0.0s'; document.getElementById('dispTotalParts').innerText = '0 pcs';
+  document.getElementById('dispSimTime').innerText = '0.0s'; document.getElementById('dispTotalParts').innerText = `${getDonePartsTotal()} pcs`;
   updateTimelineBar();
   calculateAnalyticalConclusion();
 }
@@ -2657,6 +3033,37 @@ function formatShiftClock(sec) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function formatShiftClockSec(sec) {
+  const t = Math.floor(sec), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+// Parses a typed timeline time: HH:MM:SS, HH:MM, or a number with s/m/h (plain number = minutes). Returns seconds or null.
+function parseTimelineInput(text) {
+  const t = (text || '').trim().toLowerCase();
+  if (!t) return null;
+  if (t.includes(':')) {
+    const parts = t.split(':').map(x => parseFloat(x));
+    if (parts.some(x => !Number.isFinite(x) || x < 0)) return null;
+    if (parts.length === 2) return parts[0] * 3600 + parts[1] * 60;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return null;
+  }
+  const m = t.match(/^([\d.]+)\s*(s|sec|m|min|h|hr)?$/);
+  if (!m) return null;
+  const v = parseFloat(m[1]); if (!Number.isFinite(v)) return null;
+  const u = m[2] || 'm';
+  return u.startsWith('h') ? v * 3600 : u.startsWith('m') ? v * 60 : v;
+}
+function onTimelineClockEntered(el) {
+  const unchanged = el.dataset.orig !== undefined && el.value === el.dataset.orig; delete el.dataset.orig;
+  if (el.dataset.cancel || unchanged) { delete el.dataset.cancel; el.value = formatShiftClockSec(simTime); return; } // nothing typed - don't jump
+  const sec = parseTimelineInput(el.value);
+  if (sec === null) { el.value = formatShiftClockSec(simTime); return; }
+  if (!operators.some(op => op.route.length > 0)) { alert('Draw at least one operator path before jumping the timeline.'); el.value = formatShiftClockSec(simTime); return; }
+  seekSimTimeTo(Math.min(sec, shiftDurationSec));
+  el.value = formatShiftClockSec(simTime);
+}
+
 // Returns the active break at time `sec`, or null.
 function isSimTimeOnBreak(sec) {
   return breaks.find(b => sec >= b.startSec && sec < b.startSec + b.durationSec) || null;
@@ -2674,7 +3081,8 @@ function updateTimelineBar() {
   const pct = Math.max(0, Math.min(100, (simTime / shiftDurationSec) * 100));
   document.getElementById('timelineFill').style.width = pct + '%';
   document.getElementById('timelineHandle').style.left = pct + '%';
-  document.getElementById('timelineClock').innerText = formatShiftClock(simTime);
+  const clk = document.getElementById('timelineClock');
+  if (document.activeElement !== clk) clk.value = formatShiftClockSec(simTime);
   document.getElementById('timelineClock2').innerText = formatShiftClock(shiftDurationSec);
   const banner = document.getElementById('breakBanner');
   const activeBreak = isSimTimeOnBreak(simTime);
@@ -2725,7 +3133,7 @@ function seekSimTimeTo(targetSec) {
   suppressSimUI = false;
 
   document.getElementById('dispSimTime').innerText = simTime.toFixed(1) + 's';
-  document.getElementById('dispTotalParts').innerText = `${totalPartsCompleted} pcs`;
+  document.getElementById('dispTotalParts').innerText = `${getDonePartsTotal()} pcs`;
   renderInventoryTracker();
   updateTimelineBar();
   draw(performance.now());
@@ -2743,6 +3151,8 @@ function timelineFractionFromEvent(evt) {
 }
 
 function onTimelineTrackDown(evt) {
+  const clk = document.getElementById('timelineClock');
+  if (document.activeElement === clk) { clk.dataset.cancel = '1'; clk.blur(); }
   seekSimTimeTo(timelineFractionFromEvent(evt) * shiftDurationSec);
   startTimelineDrag(evt);
 }
@@ -2754,9 +3164,19 @@ function onTimelineHandleDown(evt) {
 
 function startTimelineDrag(evt) {
   evt.preventDefault();
+  // If the time box was focused, let go of it so it keeps showing the dragged time (and doesn't jump back on blur).
+  const clk = document.getElementById('timelineClock');
+  if (document.activeElement === clk) { clk.dataset.cancel = '1'; clk.blur(); }
   isDraggingTimeline = true;
-  const onMove = (e) => seekSimTimeTo(timelineFractionFromEvent(e) * shiftDurationSec);
+  // Coalesce mouse moves to one seek per animation frame so dragging stays smooth on long shifts.
+  let pendingFrac = null, rafId = null;
+  const onMove = (e) => {
+    pendingFrac = timelineFractionFromEvent(e);
+    if (rafId === null) rafId = requestAnimationFrame(() => { rafId = null; if (pendingFrac !== null) { seekSimTimeTo(pendingFrac * shiftDurationSec); pendingFrac = null; } });
+  };
   const onUp = () => {
+    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+    if (pendingFrac !== null) { seekSimTimeTo(pendingFrac * shiftDurationSec); pendingFrac = null; }
     isDraggingTimeline = false;
     window.removeEventListener('mousemove', onMove);
     window.removeEventListener('mouseup', onUp);
@@ -2884,35 +3304,158 @@ function isGroupActive(leg) {
 function isLegDestinationOpen(leg, op) {
   const st = stations.find(s => s.id === leg.toStationId);
   if (!st) return false;
-  if (st.type === 'node') return true;
+  if (st.type === 'node' || st.type === 'point') return true;
   if (st.machineStatus === 'READY_UNLOAD') return true;
   if (st.machineStatus === 'IDLE') return !!op.holdsPart;
   return false;
 }
 
-// A leg leaving a node must have what its nodeAction needs before the operator can depart on it.
-// Auto ('') and 'none' (pass-through) never block - they only do what's currently possible, or nothing.
+// Works out what a node's drop off / pick up would do for this operator right now, without changing anything.
+// Returns null if a selected action can't be satisfied (the leg isn't eligible yet).
+function planNodeActions(leg, op, st) {
+  const { drop, pick } = getLegNodeActions(leg);
+  let held = op.holdsPart ? (op.heldType || 'done') : null;
+  let stock = st.stock || 0, completed = st.completed || 0;
+  const plan = { dropType: null, pickType: null };
+  // --- Drop off --- (skipped if already done for this leg while waiting on its pick up)
+  // Drop off picks which pile at THIS node the part goes into ('Raw' = the node's raw pile, 'Done' = its done pile),
+  // regardless of what happened to the part before - e.g. a machined part dropped as 'Raw' at an inspection handoff.
+  // 'Any' puts it in the pile matching its current state. Empty-handed = nothing to drop, so move on to the pick up.
+  if (drop !== 'none' && op.nodeDropDoneLegId !== leg.id && held) {
+    plan.dropType = drop === 'any' ? held : drop; if (plan.dropType === 'raw') stock++; else completed++; held = null;
+  }
+  // --- Pick up ---
+  if (pick !== 'none') {
+    const want = pick; let type = null;
+    if (!held) {
+      if (want === 'raw' && stock > 0) type = 'raw';
+      else if (want === 'done' && completed > 0) type = 'done';
+      else if (want === 'any') type = completed > 0 ? 'done' : (stock > 0 ? 'raw' : null);
+    }
+    if (!type) return null;
+    plan.pickType = type;
+  }
+  return plan;
+}
+
+// The operator does the drop off as soon as it's possible, even if the pick up has to wait (e.g. hand over a
+// raw part, then wait for a done part). Returns true if this leg's drop off can be done now on its own.
+function canDropOffNow(leg, op) {
+  const st = stations.find(s => s.id === leg.fromStationId);
+  if (!st || st.type !== 'node' || op.nodeDropDoneLegId === leg.id) return false;
+  const { drop } = getLegNodeActions(leg);
+  return drop !== 'none' && !!op.holdsPart;
+}
+function doDropOff(op, st, pile) {
+  const held = pile || op.heldType || 'done';
+  if (held === 'raw') st.stock = (st.stock || 0) + 1;
+  else { st.completed = (st.completed || 0) + 1; totalPartsCompleted++; }
+  st.totalDroppedOff = (st.totalDroppedOff || 0) + 1;
+  op.holdsPart = false; op.heldType = null;
+}
+
+// A leg leaving a node must be able to satisfy its selected drop off / pick up before the operator can depart on it.
 function isLegOriginReady(leg, op) {
   const st = stations.find(s => s.id === leg.fromStationId);
   if (!st || st.type !== 'node') return true;
-  if (leg.nodeAction === 'pickupRaw') return !op.holdsPart && (st.stock || 0) > 0;
-  if (leg.nodeAction === 'dropoffDone') return !!op.holdsPart;
-  if (leg.nodeAction === 'pickupDone') return !op.holdsPart && (st.completed || 0) > 0;
-  return true; // '' (Auto) and 'none' (pass-through)
+  return planNodeActions(leg, op, st) !== null;
 }
 
-// Performs the departing node's pickup/dropoff right as the operator leaves on this leg.
+// Performs the departing node's drop off then pick up right as the operator leaves on this leg.
 function applyLegOriginAction(leg, op) {
   const st = stations.find(s => s.id === leg.fromStationId);
   if (!st || st.type !== 'node') return;
-  if (leg.nodeAction === 'pickupRaw') { if (!op.holdsPart && st.stock > 0) { st.stock--; op.holdsPart = true; } }
-  else if (leg.nodeAction === 'dropoffDone') { if (op.holdsPart) { st.completed++; st.totalDroppedOff = (st.totalDroppedOff || 0) + 1; totalPartsCompleted++; op.holdsPart = false; } }
-  else if (leg.nodeAction === 'pickupDone') { if (!op.holdsPart && st.completed > 0) { st.completed--; op.holdsPart = true; } }
-  else if (leg.nodeAction === 'none') { /* pass through - never touches stock */ }
-  else { // '' (Auto): opportunistic drop off + pick up, never blocks departure
-    if (op.holdsPart) { st.completed++; st.totalDroppedOff = (st.totalDroppedOff || 0) + 1; totalPartsCompleted++; op.holdsPart = false; }
-    if (st.stock > 0) { st.stock--; op.holdsPart = true; }
+  const plan = planNodeActions(leg, op, st);
+  if (!plan) return;
+  if (plan.dropType) doDropOff(op, st, plan.dropType);
+  op.nodeDropDoneLegId = null;
+  if (plan.pickType === 'raw') { st.stock--; op.holdsPart = true; op.heldType = 'raw'; }
+  else if (plan.pickType === 'done') { st.completed--; op.holdsPart = true; op.heldType = 'done'; }
+}
+
+// Handoff awareness for dotted (reactive) legs: true if this leg goes to a node where another operator is
+// already waiting to pick up the kind of part this operator would drop off there. Such legs are chosen first.
+function legFeedsWaitingOperator(op, leg) {
+  if ((leg.pathType || 'priority') !== 'reactive' || !op.holdsPart) return false;
+  const dest = stations.find(s => s.id === leg.toStationId);
+  if (!dest || dest.type !== 'node') return false;
+  // Which pile(s) would this operator put its part on when it leaves that node?
+  const piles = new Set();
+  op.route.forEach(l => {
+    if (l.fromStationId !== dest.id) return;
+    const d = getLegNodeActions(l).drop;
+    if (d !== 'none') piles.add(d === 'any' ? (op.heldType || 'done') : d);
+  });
+  if (!piles.size) return false;
+  // Is anyone else standing at that node waiting on a pick up from one of those piles (and not already supplied)?
+  return operators.some(other => {
+    if (other === op || other.phase !== 'WAIT_FORK' || other.waitingFromStationId !== dest.id) return false;
+    return other.route.some(l => {
+      if (l.fromStationId !== dest.id) return false;
+      const pk = getLegNodeActions(l).pick;
+      if (pk === 'none') return false;
+      if (pk === 'raw' && (dest.stock || 0) > 0) return false;
+      if (pk === 'done' && (dest.completed || 0) > 0) return false;
+      if (pk === 'any' && ((dest.stock || 0) + (dest.completed || 0)) > 0) return false;
+      return pk === 'any' || piles.has(pk);
+    });
+  });
+}
+
+// For a dotted (reactive) line leaving a node or open-space point: is there anything to do at either end right now? Origin side is
+// already covered by the line's pick up / drop off settings; this checks the destination with what the operator
+// will be holding after the origin's actions. If nothing is waiting, the operator stays at the node instead.
+function reactiveLegHasWork(leg, op) {
+  const from = stations.find(s => s.id === leg.fromStationId), to = stations.find(s => s.id === leg.toStationId);
+  if (!from || !to) return false;
+  let held = op.holdsPart ? (op.heldType || 'done') : null;
+  if (from.type === 'node') {
+    const plan = planNodeActions(leg, op, from);
+    if (!plan) return false;
+    if (plan.dropType) held = null;
+    if (plan.pickType) held = plan.pickType;
+    if (plan.dropType || plan.pickType) return true; // something actually happens at the origin node
   }
+  if (to.type === 'station') return to.machineStatus === 'READY_UNLOAD' || (to.machineStatus === 'IDLE' && !!held);
+  if (to.type === 'node') {
+    const ghost = { holdsPart: !!held, heldType: held, nodeDropDoneLegId: null };
+    const outs = op.route.filter(l => l.fromStationId === to.id && (l.pathType || 'priority') !== 'auto');
+    if (!outs.length) return true;
+    return outs.some(l => { const a = getLegNodeActions(l); return (a.drop !== 'none' && held) || (a.pick !== 'none' && planNodeActions(l, ghost, to)); });
+  }
+  return true; // open-space point
+}
+
+// Longest-wait priority for dotted (reactive) lines: how long the longest-waiting other operator at this line's
+// destination node has been standing there, if this operator can help them (hand them a part they need, or
+// arrive empty-handed to take the part they've dropped). 0 if nobody relevant is waiting.
+function getWaitPriority(op, leg) {
+  if ((leg.pathType || 'priority') !== 'reactive') return 0;
+  const dest = stations.find(s => s.id === leg.toStationId);
+  if (!dest || dest.type !== 'node') return 0;
+  const helps = legFeedsWaitingOperator(op, leg) || (!op.holdsPart && reactiveLegHasWork(leg, op));
+  if (!helps) return 0;
+  let longest = 0;
+  operators.forEach(o => {
+    if (o === op || o.phase !== 'WAIT_FORK' || o.waitingFromStationId !== dest.id) return;
+    longest = Math.max(longest, simTime - (o.waitSince !== undefined ? o.waitSince : simTime) + 1e-6);
+  });
+  return longest;
+}
+
+// Sends an operator who has finished a transaction back to the start of their route (route[0]'s origin).
+// Walks back along a drawn line from the start to here (reversed) if one exists, otherwise straight across.
+function startReturnToStart(op, fromStationId) {
+  const startId = op.route[0] && op.route[0].fromStationId;
+  if (!startId || startId === fromStationId) return false;
+  const outbound = op.route.find(l => l.fromStationId === startId && l.toStationId === fromStationId && (l.pathType || 'priority') !== 'auto');
+  let wps;
+  if (outbound) wps = getPathWaypoints(outbound).slice().reverse();
+  else { const p = getPortCoords(startId, op.route[0].fromPortId); wps = [{ x: op.x, y: op.y }, { x: p.x, y: p.y }]; }
+  op.returnPath = wps; op.waypointIndex = 1; op.returnToStationId = startId;
+  op.nodeDropDoneLegId = null; op.waitingFromStationId = null;
+  op.phase = 'RETURNING'; op.phaseTimer = 0;
+  return true;
 }
 
 function getLegPriority(leg) {
@@ -2973,7 +3516,7 @@ function startLeg(op) {
 
 // Shared arrival logic for a walked leg: node stock pickup/dropoff or station machine handoff.
 function handleLegArrival(op, leg, targetStation) {
-  if (targetStation.type === 'node') {
+  if (targetStation.type === 'node' || targetStation.type === 'point') {
      advanceOperatorRoute(op); // nodes never block on arrival - pickup/dropoff happens on the leg leaving them
   } else {
      if (targetStation.machineStatus === 'RUNNING') {
@@ -3003,7 +3546,7 @@ function advanceOperatorRoute(op) {
   let nextIdx = retryingFork ? op.routeIndex : (op.routeIndex + 1) % n;
   if (!retryingFork && nextIdx === 0) op.cyclesCompleted++;
 
-  const eligible = [];
+  const eligible = [], dropOnly = [];
   for (let k = 0; k < n; k++) {
     const idx = (nextIdx + k) % n;
     const leg = op.route[idx];
@@ -3013,22 +3556,38 @@ function advanceOperatorRoute(op) {
     if (!isGroupActive(leg)) continue;
     if (type === 'reactive' && op.cyclesCompleted % (leg.frequency || 1) !== 0) continue;
     if (type === 'oneshot' && leg.completedOnce) continue;
-    if (!isLegOriginReady(leg, op)) continue; // operator can't depart until the origin node pickup/dropoff is possible
-    eligible.push({ idx, order: k, leg, open: isLegDestinationOpen(leg, op) });
+    if (!isLegOriginReady(leg, op)) { if (canDropOffNow(leg, op)) dropOnly.push({ leg, order: k }); continue; } // can't depart yet
+    const fromType = stations.find(s => s.id === leg.fromStationId)?.type;
+    const fromNode = fromType === 'node' || fromType === 'point'; // nodes and open-space points both hold the operator
+    if (type === 'reactive' && fromNode && !reactiveLegHasWork(leg, op) && !legFeedsWaitingOperator(op, leg)) continue; // nothing waiting either side - stay at the node
+    eligible.push({ idx, order: k, leg, open: isLegDestinationOpen(leg, op), feeds: legFeedsWaitingOperator(op, leg) ? 0 : 1, waited: getWaitPriority(op, leg) });
   }
 
   const openCandidates = eligible.filter(c => c.open);
   const blockedCandidates = eligible.filter(c => !c.open);
   let selected = null;
   if (openCandidates.length > 0) {
-    openCandidates.sort((a, b) => getLegPriority(a.leg) - getLegPriority(b.leg) || getLegWalkDistancePx(op, a.leg) - getLegWalkDistancePx(op, b.leg) || a.order - b.order);
+    openCandidates.sort((a, b) => b.waited - a.waited || a.feeds - b.feeds || getLegPriority(a.leg) - getLegPriority(b.leg) || getLegWalkDistancePx(op, a.leg) - getLegWalkDistancePx(op, b.leg) || a.order - b.order);
     selected = openCandidates[0];
   } else if (blockedCandidates.length > 0) {
-    blockedCandidates.sort((a, b) => getLegPriority(a.leg) - getLegPriority(b.leg) || getLegRemainingBusyTime(a.leg) - getLegRemainingBusyTime(b.leg) || getLegWalkDistancePx(op, a.leg) - getLegWalkDistancePx(op, b.leg) || a.order - b.order);
+    blockedCandidates.sort((a, b) => b.waited - a.waited || a.feeds - b.feeds || getLegPriority(a.leg) - getLegPriority(b.leg) || getLegRemainingBusyTime(a.leg) - getLegRemainingBusyTime(b.leg) || getLegWalkDistancePx(op, a.leg) - getLegWalkDistancePx(op, b.leg) || a.order - b.order);
     selected = blockedCandidates[0];
   }
 
+  if (!selected && dropOnly.length > 0) {
+    // Nothing can fully depart yet, but a drop off can happen now - do it, then keep waiting for that leg's pick up.
+    dropOnly.sort((a, b) => getLegPriority(a.leg) - getLegPriority(b.leg) || a.order - b.order);
+    const st = stations.find(s => s.id === dropOnly[0].leg.fromStationId);
+    const d = getLegNodeActions(dropOnly[0].leg).drop;
+    const pile = d === 'any' ? (op.heldType || 'done') : d;
+    doDropOff(op, st, pile);
+    op.nodeDropDoneLegId = dropOnly[0].leg.id;
+    // Dropping a done part finishes this operator's transaction - if they can't carry straight on, head back to start.
+    if (pile === 'done' && startReturnToStart(op, st.id)) return;
+  }
+
   if (!selected) {
+    if (op.phase !== 'WAIT_FORK') op.waitSince = simTime; // remember when this wait started (for longest-wait priority)
     op.phase = 'WAIT_FORK';
     op.phaseTimer = 0;
     op.waypointIndex = 0;
@@ -3059,7 +3618,7 @@ function advanceSimulationTick(simDt) {
   simTime += simDt;
   const activeBreak = isSimTimeOnBreak(simTime);
   if (!suppressSimUI) {
-    document.getElementById('dispSimTime').innerText = simTime.toFixed(1) + 's'; document.getElementById('dispTotalParts').innerText = `${totalPartsCompleted} pcs`;
+    document.getElementById('dispSimTime').innerText = simTime.toFixed(1) + 's'; document.getElementById('dispTotalParts').innerText = `${getDonePartsTotal()} pcs`;
     if (simTime - lastInventoryUpdate > 0.25) { lastInventoryUpdate = simTime; renderInventoryTracker(); }
     updateTimelineBar();
     if (activeBreak) document.getElementById('dispState').innerText = `ON BREAK: ${activeBreak.name}`;
@@ -3080,6 +3639,9 @@ function advanceSimulationTick(simDt) {
 
   operators.forEach(op => {
     if (op.route.length === 0) return;
+    // Wait timers: current wait streak + total time spent waiting this run.
+    if (OPERATOR_WAIT_PHASES.has(op.phase)) { op.curWait = (op.curWait || 0) + simDt; op.totalWait = (op.totalWait || 0) + simDt; }
+    else op.curWait = 0;
     const leg = op.route[op.routeIndex]; const targetStation = stations.find(s => s.id === leg.toStationId);
     if (!targetStation) return;
 
@@ -3117,8 +3679,23 @@ function advanceSimulationTick(simDt) {
          op.phase = 'MANUAL_WORK'; op.phaseTimer = 0;
       }
     }
+    else if (op.phase === 'RETURNING') {
+      if (!suppressSimUI && op.id === activeOperatorId) document.getElementById('dispState').innerText = `${op.name}: RETURNING TO START`;
+      const wps = op.returnPath || []; const targetWp = wps[op.waypointIndex] || wps[wps.length - 1];
+      const dx = targetWp.x - op.x, dy = targetWp.y - op.y, distPx = Math.hypot(dx, dy), stepPx = (walkSpeedFt * pixelsPerFoot) * simDt;
+      if (distPx > 1) op.angle = Math.atan2(dy, dx);
+      if (distPx <= stepPx || distPx < 2) {
+        op.x = targetWp.x; op.y = targetWp.y; op.waypointIndex++;
+        if (op.waypointIndex >= wps.length) {
+          // Back at start: wait there and pick the next job like a fresh start.
+          op.returnPath = null; op.waypointIndex = 0; op.routeIndex = 0;
+          op.waitingFromStationId = op.returnToStationId; op.phase = 'WAIT_FORK'; op.waitSince = simTime;
+          advanceOperatorRoute(op);
+        }
+      } else { op.x += (dx / distPx) * stepPx; op.y += (dy / distPx) * stepPx; }
+    }
     else if (op.phase === 'WAIT_FORK') {
-      if (!suppressSimUI && op.id === activeOperatorId) document.getElementById('dispState').innerText = `${op.name}: WAITING FOR NEXT OPEN PATH`;
+      if (!suppressSimUI && op.id === activeOperatorId) document.getElementById('dispState').innerText = op.nodeDropDoneLegId ? `${op.name}: DROPPED OFF - WAITING TO PICK UP` : `${op.name}: WAITING FOR NEXT OPEN PATH`;
       advanceOperatorRoute(op);
     }
     else if (op.phase === 'MANUAL_WORK') {
@@ -3129,7 +3706,7 @@ function advanceSimulationTick(simDt) {
         if (targetStation.auto <= 0) {
            // Purely manual station: the single pass IS the whole operation, so the part never leaves the operator's hands.
            targetStation.partsCompleted = (targetStation.partsCompleted || 0) + 1;
-           op.holdsPart = true;
+           op.holdsPart = true; op.heldType = 'done';
            targetStation.machineTimer = 0;
            targetStation.machineStatus = 'IDLE';
            advanceOperatorRoute(op);
@@ -3137,13 +3714,13 @@ function advanceSimulationTick(simDt) {
            targetStation.partsCompleted = (targetStation.partsCompleted || 0) + 1;
            if (op.holdsPart) {
               // Operator swaps finished part for raw part
-              op.holdsPart = true; 
+              op.holdsPart = true; op.heldType = 'done';
               targetStation.machineTimer = 0;
               targetStation.machineStatus = 'RUNNING';
               targetStation.currentAutoTarget = getStationAutoTarget(targetStation);
            } else {
               // Operator unloads machine
-              op.holdsPart = true;
+              op.holdsPart = true; op.heldType = 'done';
               targetStation.machineTimer = 0;
               targetStation.machineStatus = 'IDLE';
            }
@@ -3151,7 +3728,7 @@ function advanceSimulationTick(simDt) {
            else advanceOperatorRoute(op);
         } else if (targetStation.machineStatus === 'IDLE') {
            // Operator loads raw part into empty machine
-           op.holdsPart = false;
+           op.holdsPart = false; op.heldType = null;
            targetStation.machineTimer = 0;
            targetStation.machineStatus = 'RUNNING';
            targetStation.currentAutoTarget = getStationAutoTarget(targetStation);
@@ -3164,7 +3741,7 @@ function advanceSimulationTick(simDt) {
       if (!suppressSimUI && op.id === activeOperatorId) { const tgt = targetStation.currentAutoTarget !== undefined ? targetStation.currentAutoTarget : targetStation.auto; document.getElementById('dispState').innerText = `${op.name}: COUPLED (${Math.max(0, tgt - targetStation.machineTimer).toFixed(1)}s)`; }
       if (targetStation.machineStatus === 'READY_UNLOAD') {
         targetStation.machineStatus = 'IDLE';
-        op.holdsPart = true;
+        op.holdsPart = true; op.heldType = 'done';
         advanceOperatorRoute(op);
       }
     }
@@ -3219,11 +3796,12 @@ function draw(timestamp) {
   ctx.fillStyle = isLightTheme ? '#f1f5f9' : '#0a0f1d'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.save(); ctx.translate(camX, camY); ctx.scale(camZoom, camZoom);
 
-  ctx.strokeStyle = isLightTheme ? '#e2e8f0' : '#152033'; ctx.lineWidth = 1/camZoom;
   const startX = Math.floor((-camX / camZoom) / pixelsPerFoot) * pixelsPerFoot;
   const startY = Math.floor((-camY / camZoom) / pixelsPerFoot) * pixelsPerFoot;
   const endX = startX + (canvas.width / camZoom) + pixelsPerFoot*2;
   const endY = startY + (canvas.height / camZoom) + pixelsPerFoot*2;
+  drawSubFootGrid(ctx, camZoom, startX, startY, endX, endY);
+  ctx.strokeStyle = isLightTheme ? '#e2e8f0' : '#152033'; ctx.lineWidth = 1/camZoom;
   for (let x = startX; x < endX; x += pixelsPerFoot) { ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, endY); ctx.stroke(); }
   for (let y = startY; y < endY; y += pixelsPerFoot) { ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(endX, y); ctx.stroke(); }
 
@@ -3331,7 +3909,7 @@ function draw(timestamp) {
       const badgeOff = 6;
       const bx = midInfo.x - Math.sin(midInfo.angle) * badgeOff, by = midInfo.y + Math.cos(midInfo.angle) * badgeOff;
       // Badges are drawn in a later pass (after stations) so they always stay on top instead of being covered.
-      routeBadges.push({ bx, by, angle: midInfo.angle, routeColor, num: stepNumbers[legIdx] });
+      if (stepNumbers[legIdx] !== null) routeBadges.push({ bx, by, angle: midInfo.angle, routeColor, num: stepNumbers[legIdx] });
     });
   });
 
@@ -3343,6 +3921,16 @@ function draw(timestamp) {
 
   stations.forEach(st => {
     const sel = selectedStationIds.includes(st.id);
+    if (st.type === 'point') {
+      // Open-space path end point: just a dot the operator walks to / from.
+      const pcx = st.x + st.w / 2, pcy = st.y + st.h / 2;
+      const isStart = activeRouteStartPort && activeRouteStartPort.stationId === st.id;
+      ctx.beginPath(); ctx.arc(pcx, pcy, (sel || isStart ? 7 : 5.5) / camZoom, 0, Math.PI * 2);
+      ctx.fillStyle = isStart ? '#f59e0b' : (isLightTheme ? '#ffffff' : '#0a0f1d'); ctx.fill();
+      ctx.lineWidth = (sel ? 3 : 2) / camZoom; ctx.strokeStyle = sel ? '#0284c7' : '#38bdf8'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(pcx, pcy, 2 / camZoom, 0, Math.PI * 2); ctx.fillStyle = '#38bdf8'; ctx.fill();
+      return;
+    }
     const rot = st.rot || 0, scx = st.x + st.w/2, scy = st.y + st.h/2;
     ctx.save(); ctx.translate(scx, scy); ctx.rotate(rot);
     const lb = { x: -st.w/2, y: -st.h/2, w: st.w, h: st.h };
@@ -3504,7 +4092,8 @@ function draw(timestamp) {
       ctx.fillStyle = op.color; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
       if (op.holdsPart) {
-        ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#b45309'; ctx.lineWidth = 1.5;
+        if (op.heldType === 'raw') { ctx.fillStyle = '#94a3b8'; ctx.strokeStyle = '#475569'; } else { ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#b45309'; }
+        ctx.lineWidth = 1.5;
         ctx.fillRect(7, -6, 12, 12); ctx.strokeRect(7, -6, 12, 12);
       }
       ctx.restore();
@@ -3557,6 +4146,7 @@ function applyLoadedLayoutJSON(text) {
       pathGroups = p.pathGroups || [];
       if (p.taktAvailMin !== undefined) document.getElementById('taktAvail').value = p.taktAvailMin;
       if (p.taktDemand !== undefined) document.getElementById('taktDemand').value = p.taktDemand;
+      if (p.oePercent !== undefined) document.getElementById('oePercent').value = p.oePercent;
       shiftDurationSec = p.shiftDurationSec || 24 * 3600;
       breaks = p.breaks || [];
       
