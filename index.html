@@ -114,10 +114,8 @@
 
   #timelineEditorPage { display: none; position: fixed; inset: 0; background: var(--bg-main); z-index: 150; flex-direction: column; }
   #timelineEditorPage.open { display: flex; }
-  .break-row { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 6px; }
-  .break-row input[type="text"]:first-child { flex: 1; }
-  .break-row input[type="text"]:not(:first-child), .break-row input[type="number"] { width: 70px; }
-
+  .break-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 6px; }
+  
 
   .scale-key {
     background: var(--bg-main); border: 1px solid var(--border); padding: 4px 8px;
@@ -360,8 +358,8 @@
         <div id="timelineHandle" onmousedown="onTimelineHandleDown(event)"></div>
       </div>
     </div>
-    <span id="timelineClock2">24:00</span>
-    <button onclick="openTimelineEditor()" title="Edit shift length & breaks" style="padding:4px 8px; font-size:11px;">✎ Edit</button>
+    <select id="shiftSelectBar" onchange="selectShift(this.value)" title="Select shift" style="width:auto; font-size:11px; padding:3px 4px;"></select>
+    <button onclick="openTimelineEditor()" title="Edit shifts & breaks" style="padding:4px 8px; font-size:11px;">✎ Edit</button>
   </div>
 
   <div id="canvas-container">
@@ -487,6 +485,13 @@
     </div>
   </div>
   <div style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:18px; max-width:760px; margin:0 auto; width:100%;">
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <label style="font-size:12px; font-weight:700;">Shift</label>
+      <select id="shiftSelectEditor" onchange="selectShift(this.value)" style="width:auto;"></select>
+      <input type="text" id="shiftNameInput" placeholder="Shift name" style="width:140px;" onchange="renameActiveShift(this.value)">
+      <button class="primary" onclick="addShift()">+ Add Shift</button>
+      <button class="danger" onclick="deleteActiveShift()">Delete Shift</button>
+    </div>
     <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
       <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; white-space:nowrap;">Start <input type="text" id="shiftStartInput" maxlength="5" placeholder="h:mm" style="width:60px;" onchange="onShiftTimesChange()"> <select id="shiftStartAP" style="width:auto; display:inline-block;" onchange="onShiftTimesChange()"><option>AM</option><option>PM</option></select></label>
       <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; white-space:nowrap;">End <input type="text" id="shiftEndInput" maxlength="5" placeholder="h:mm" style="width:60px;" onchange="onShiftTimesChange()"> <select id="shiftEndAP" style="width:auto; display:inline-block;" onchange="onShiftTimesChange()"><option>AM</option><option>PM</option></select></label>
@@ -692,6 +697,8 @@ let isRunning = false, isSimActive = false, simTime = 0, totalPartsCompleted = 0
 // "Completed Parts" display: every part currently sitting on a node's done pile, across the whole cell.
 function getDonePartsTotal() { return stations.reduce((sum, st) => sum + (st.type === 'node' ? (st.completed || 0) : 0), 0); }
 let shiftDurationSec = 24 * 3600;
+let shifts = [{ id: 'shift_1', name: 'Shift 1', startSec: 0, durationSec: 24 * 3600, breaks: [] }];
+let activeShiftId = 'shift_1', shiftIdCounter = 2;
 let shiftStartSec = 0; // wall-clock time of day (seconds after midnight) at which the shift begins
 let breaks = []; // {id, name, startSec, durationSec}
 let suppressSimUI = false, isDraggingTimeline = false;
@@ -2814,11 +2821,12 @@ async function exportSWCSCSV() {
 }
 
 async function exportWorkflowJSON() {
+  commitActiveShift();
   const data = { stations, zones, operators, walkSpeedFt, pathGroups,
     taktAvailMin: parseFloat(document.getElementById('taktAvail').value) || 0,
     taktDemand: parseFloat(document.getElementById('taktDemand').value) || 0,
     oePercent: parseFloat(document.getElementById('oePercent').value) || 100,
-    shiftDurationSec, shiftStartSec, breaks };
+    shiftDurationSec, shiftStartSec, breaks, shifts, activeShiftId };
   const jsonStr = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const defaultName = 'lean_cell_layout.json';
@@ -2840,11 +2848,12 @@ async function exportWorkflowJSON() {
 // Overwrites the file last opened/saved via the File System Access API; falls back to Save As if there isn't one yet.
 async function saveWorkflowJSON() {
   if (!currentLayoutFileHandle) { await exportWorkflowJSON(); return; }
+  commitActiveShift();
   const data = { stations, zones, operators, walkSpeedFt, pathGroups,
     taktAvailMin: parseFloat(document.getElementById('taktAvail').value) || 0,
     taktDemand: parseFloat(document.getElementById('taktDemand').value) || 0,
     oePercent: parseFloat(document.getElementById('oePercent').value) || 100,
-    shiftDurationSec, shiftStartSec, breaks };
+    shiftDurationSec, shiftStartSec, breaks, shifts, activeShiftId };
   const jsonStr = JSON.stringify(data, null, 2);
   try {
     const writable = await currentLayoutFileHandle.createWritable();
@@ -3062,12 +3071,28 @@ function onTimelineClockEntered(el) {
 
 // Returns the active break at time `sec`, or null.
 function isSimTimeOnBreak(sec) {
-  return breaks.find(b => sec >= b.startSec && sec < b.startSec + b.durationSec) || null;
+  return visibleBreaks().find(b => sec >= b._rel && sec < b._rel + b._eff) || null;
+}
+
+// A break's wall-clock start (b.clockSec) is the source of truth. Its position within the active shift is derived from it,
+// and breaks that fall outside the shift are simply not shown / counted (the entry is kept so it can be edited).
+function breakRel(b) {
+  if (b.clockSec === undefined) b.clockSec = normDay(shiftStartSec + (b.startSec || 0)); // legacy break stored relative to shift start
+  return normDay(b.clockSec - shiftStartSec);
+}
+function visibleBreaks() {
+  const out = [];
+  breaks.forEach(b => {
+    const rel = breakRel(b);
+    b.startSec = rel;
+    if (rel < shiftDurationSec && b.durationSec > 0) { b._rel = rel; b._eff = Math.min(b.durationSec, shiftDurationSec - rel); out.push(b); }
+  });
+  return out;
 }
 
 // Avail. Time (min) = shift length minus total scheduled break time, kept in sync automatically.
 function recalcAvailTimeFromBreaks() {
-  const totalBreakSec = breaks.reduce((sum, b) => sum + (b.durationSec || 0), 0);
+  const totalBreakSec = visibleBreaks().reduce((sum, b) => sum + b._eff, 0);
   const availMin = Math.max(0, (shiftDurationSec - totalBreakSec) / 60);
   document.getElementById('taktAvail').value = availMin;
   calculateAnalyticalConclusion();
@@ -3079,9 +3104,7 @@ function updateTimelineBar() {
   document.getElementById('timelineHandle').style.left = pct + '%';
   const clk = document.getElementById('timelineClock');
   if (document.activeElement !== clk) clk.value = formatShiftClockSec(simTime);
-  const clk2 = document.getElementById('timelineClock2');
-  clk2.innerText = `${fmtHHMM(shiftStartSec)} – ${fmtHHMM(shiftStartSec + shiftDurationSec)}`;
-  clk2.title = `Now: ${fmtHHMM(shiftStartSec + simTime)} (shift length ${formatShiftClock(shiftDurationSec)})`;
+
   const banner = document.getElementById('breakBanner');
   const activeBreak = isSimTimeOnBreak(simTime);
   banner.style.display = activeBreak ? 'flex' : 'none';
@@ -3105,12 +3128,12 @@ function renderTimelineTicks() {
 function renderTimelineBreaks() {
   const track = document.getElementById('timelineTrack');
   track.querySelectorAll('.timeline-break').forEach(n => n.remove());
-  breaks.forEach(b => {
+  visibleBreaks().forEach(b => {
     const div = document.createElement('div');
     div.className = 'timeline-break';
     div.title = b.name;
-    div.style.left = (b.startSec / shiftDurationSec * 100) + '%';
-    div.style.width = (b.durationSec / shiftDurationSec * 100) + '%';
+    div.style.left = (b._rel / shiftDurationSec * 100) + '%';
+    div.style.width = (b._eff / shiftDurationSec * 100) + '%';
     track.appendChild(div);
   });
 }
@@ -3206,7 +3229,65 @@ function setTimeFields(textId, apId, secOfDay) {
   document.getElementById(apId).value = p.ap;
 }
 
+// ---- Multiple shifts ----
+// shiftStartSec / shiftDurationSec / breaks always mirror the active shift; this writes them back into its record.
+function commitActiveShift() {
+  const sh = shifts.find(x => x.id === activeShiftId);
+  if (sh) { breaks.forEach(b => { b.startSec = breakRel(b); }); sh.startSec = shiftStartSec; sh.durationSec = shiftDurationSec; sh.breaks = breaks; }
+}
+function renderShiftSelectors() {
+  const html = shifts.map(sh => `<option value="${sh.id}"${sh.id === activeShiftId ? ' selected' : ''}>${String(sh.name).replace(/</g, '&lt;')} (${fmtHHMM(sh.id === activeShiftId ? shiftStartSec : sh.startSec)} – ${fmtHHMM((sh.id === activeShiftId ? shiftStartSec : sh.startSec) + (sh.id === activeShiftId ? shiftDurationSec : sh.durationSec))})</option>`).join('');
+  ['shiftSelectBar', 'shiftSelectEditor'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = html; });
+  const sh = shifts.find(x => x.id === activeShiftId);
+  const nameEl = document.getElementById('shiftNameInput'); if (nameEl && sh) nameEl.value = sh.name;
+}
+function loadActiveShiftIntoEditor() {
+  setTimeFields('shiftStartInput', 'shiftStartAP', shiftStartSec);
+  setTimeFields('shiftEndInput', 'shiftEndAP', shiftStartSec + shiftDurationSec);
+  renderBreaksEditorList();
+  renderTimelineEditorPreview();
+}
+function selectShift(id) {
+  if (id === activeShiftId) return;
+  const sh = shifts.find(x => x.id === id);
+  if (!sh) return;
+  commitActiveShift();
+  activeShiftId = id;
+  shiftStartSec = sh.startSec; shiftDurationSec = sh.durationSec; breaks = sh.breaks = sh.breaks || [];
+  renderShiftSelectors();
+  loadActiveShiftIntoEditor();
+  recalcAvailTimeFromBreaks();
+  renderTimelineTicks(); renderTimelineBreaks();
+  resetSim(); // the shift length changed, so restart the simulation from the top of the new shift
+}
+function addShift() {
+  commitActiveShift();
+  const id = 'shift_' + (shiftIdCounter++);
+  shifts.push({ id, name: 'Shift', startSec: (shiftStartSec + shiftDurationSec) % DAY_SEC, durationSec: 8 * 3600, breaks: [] });
+  shifts[shifts.length - 1].name = 'Shift ' + shifts.length;
+  selectShift(id);
+}
+function deleteActiveShift() {
+  if (shifts.length <= 1) { alert('At least one shift is required.'); return; }
+  if (!confirm('Delete this shift and its breaks?')) return;
+  shifts = shifts.filter(x => x.id !== activeShiftId);
+  const next = shifts[0];
+  activeShiftId = next.id;
+  shiftStartSec = next.startSec; shiftDurationSec = next.durationSec; breaks = next.breaks = next.breaks || [];
+  renderShiftSelectors();
+  loadActiveShiftIntoEditor();
+  recalcAvailTimeFromBreaks();
+  renderTimelineTicks(); renderTimelineBreaks();
+  resetSim();
+}
+function renameActiveShift(name) {
+  const sh = shifts.find(x => x.id === activeShiftId);
+  if (sh) sh.name = name.trim() || sh.name;
+  renderShiftSelectors();
+}
+
 function openTimelineEditor() {
+  renderShiftSelectors();
   setTimeFields('shiftStartInput', 'shiftStartAP', shiftStartSec);
   setTimeFields('shiftEndInput', 'shiftEndAP', shiftStartSec + shiftDurationSec);
   renderBreaksEditorList();
@@ -3231,19 +3312,15 @@ function onShiftTimesChange() {
   }
   setTimeFields('shiftStartInput', 'shiftStartAP', newStart);
   setTimeFields('shiftEndInput', 'shiftEndAP', newEnd);
-  // Keep breaks at the same wall-clock time when the start moves (break.startSec is relative to shift start).
-  const delta = newStart - shiftStartSec;
+  // Breaks keep their wall-clock times; any that fall outside the new shift are simply hidden from the timeline.
+  visibleBreaks(); // make sure every break has its wall-clock time fixed before the shift start moves
   let dur = ((newEnd - newStart) % DAY_SEC + DAY_SEC) % DAY_SEC;
   if (dur === 0) dur = DAY_SEC; // same start & end = full 24 h
-  breaks.forEach(b => { b.startSec = (((b.startSec - delta) % DAY_SEC) + DAY_SEC) % DAY_SEC; });
   shiftStartSec = newStart;
   shiftDurationSec = dur;
-  // Clamp any breaks that no longer fit within the new shift length.
-  breaks.forEach(b => {
-    b.startSec = Math.min(b.startSec, Math.max(0, shiftDurationSec - 60));
-    b.durationSec = Math.min(b.durationSec, shiftDurationSec - b.startSec);
-  });
   if (simTime > shiftDurationSec) { simTime = shiftDurationSec; }
+  commitActiveShift();
+  renderShiftSelectors();
   renderBreaksEditorList();
   renderTimelineEditorPreview();
   recalcAvailTimeFromBreaks();
@@ -3251,7 +3328,7 @@ function onShiftTimesChange() {
 
 let breakIdCounter = 1;
 function addBreak() {
-  breaks.push({ id: 'brk_' + (breakIdCounter++), name: 'Break', startSec: 0, durationSec: 900 });
+  breaks.push({ id: 'brk_' + (breakIdCounter++), name: 'Break', clockSec: shiftStartSec, startSec: 0, durationSec: 900 });
   renderBreaksEditorList();
   renderTimelineEditorPreview();
   recalcAvailTimeFromBreaks();
@@ -3268,11 +3345,7 @@ function updateBreakField(id, field, value) {
   const b = breaks.find(x => x.id === id);
   if (!b) return;
   if (field === 'name') b.name = value;
-  else if (field === 'startTime') { // value = wall-clock time of day in seconds; stored relative to shift start
-    const rel = (((value - shiftStartSec) % DAY_SEC) + DAY_SEC) % DAY_SEC;
-    b.startSec = Math.max(0, Math.min(shiftDurationSec, rel));
-    b.durationSec = Math.min(b.durationSec, shiftDurationSec - b.startSec);
-  }
+  else if (field === 'startTime') { b.clockSec = value; b.startSec = breakRel(b); } // value = wall-clock time of day in seconds
   else if (field === 'durationMin') b.durationSec = Math.max(0, (parseFloat(value) || 0) * 60);
   renderTimelineEditorPreview();
   recalcAvailTimeFromBreaks();
@@ -3292,9 +3365,9 @@ function renderBreaksEditorList() {
     const row = document.createElement('div');
     row.className = 'break-row';
     row.innerHTML = `
-      <input type="text" value="${b.name}" onchange="updateBreakField('${b.id}','name',this.value)">
-      <label style="font-size:10px; color:var(--text-muted);">Start <input type="text" id="brkTxt_${b.id}" maxlength="5" placeholder="h:mm" value="${splitTime12(shiftStartSec + b.startSec).text}" onchange="onBreakTimeChange('${b.id}')"> <select id="brkAp_${b.id}" style="width:auto; display:inline-block;" onchange="onBreakTimeChange('${b.id}')"><option${splitTime12(shiftStartSec + b.startSec).ap === 'AM' ? ' selected' : ''}>AM</option><option${splitTime12(shiftStartSec + b.startSec).ap === 'PM' ? ' selected' : ''}>PM</option></select></label>
-      <label style="font-size:10px; color:var(--text-muted);">Minutes <input type="number" min="1" value="${b.durationSec / 60}" onchange="updateBreakField('${b.id}','durationMin',this.value)"></label>
+      <input type="text" value="${b.name}" style="flex:1; min-width:100px;" onchange="updateBreakField('${b.id}','name',this.value)">
+      <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; white-space:nowrap;">Start <input type="text" id="brkTxt_${b.id}" maxlength="5" placeholder="h:mm" style="width:60px;" value="${splitTime12(b.clockSec !== undefined ? b.clockSec : shiftStartSec + b.startSec).text}" onchange="onBreakTimeChange('${b.id}')"> <select id="brkAp_${b.id}" style="width:auto; display:inline-block;" onchange="onBreakTimeChange('${b.id}')"><option${splitTime12(b.clockSec !== undefined ? b.clockSec : shiftStartSec + b.startSec).ap === 'AM' ? ' selected' : ''}>AM</option><option${splitTime12(b.clockSec !== undefined ? b.clockSec : shiftStartSec + b.startSec).ap === 'PM' ? ' selected' : ''}>PM</option></select></label>
+      <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; white-space:nowrap;">Minutes <input type="number" min="1" style="width:60px;" value="${b.durationSec / 60}" onchange="updateBreakField('${b.id}','durationMin',this.value)"></label>
       <button class="danger" onclick="removeBreak('${b.id}')">✕</button>`;
     el.appendChild(row);
   });
@@ -3313,12 +3386,12 @@ function renderTimelineEditorPreview() {
   }
   const track = document.getElementById('timelineEditorPreview');
   track.querySelectorAll('.timeline-break').forEach(n => n.remove());
-  breaks.forEach(b => {
+  visibleBreaks().forEach(b => {
     const div = document.createElement('div');
     div.className = 'timeline-break';
     div.title = b.name;
-    div.style.left = (b.startSec / shiftDurationSec * 100) + '%';
-    div.style.width = (b.durationSec / shiftDurationSec * 100) + '%';
+    div.style.left = (b._rel / shiftDurationSec * 100) + '%';
+    div.style.width = (b._eff / shiftDurationSec * 100) + '%';
     track.appendChild(div);
   });
 }
@@ -4196,6 +4269,17 @@ function applyLoadedLayoutJSON(text) {
       shiftDurationSec = p.shiftDurationSec || 24 * 3600;
       shiftStartSec = p.shiftStartSec || 0;
       breaks = p.breaks || [];
+      if (Array.isArray(p.shifts) && p.shifts.length) {
+        shifts = p.shifts.map(sh => ({ id: sh.id, name: sh.name || sh.id, startSec: sh.startSec || 0, durationSec: sh.durationSec || 24 * 3600, breaks: sh.breaks || [] }));
+        activeShiftId = shifts.some(sh => sh.id === p.activeShiftId) ? p.activeShiftId : shifts[0].id;
+        const act = shifts.find(sh => sh.id === activeShiftId);
+        shiftStartSec = act.startSec; shiftDurationSec = act.durationSec; breaks = act.breaks;
+        shiftIdCounter = shifts.reduce((mx, sh) => Math.max(mx, parseInt(String(sh.id).replace(/\D/g, ''), 10) || 0), 0) + 1;
+      } else { // legacy single-shift file
+        shifts = [{ id: 'shift_1', name: 'Shift 1', startSec: shiftStartSec, durationSec: shiftDurationSec, breaks }];
+        activeShiftId = 'shift_1'; shiftIdCounter = 2;
+      }
+      renderShiftSelectors();
       
       // Migrate legacy pickup/dropoff nodes and per-station/global wet settings to the current schema.
       const legacyGlobalWet = !!p.startWet;
@@ -4241,6 +4325,7 @@ updateRecordUI();
 calculateAnalyticalConclusion();
 renderTimelineTicks();
 renderTimelineBreaks();
+renderShiftSelectors();
 requestAnimationFrame(mainLoop);
 </script>
 </body>
