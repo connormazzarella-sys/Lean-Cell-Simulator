@@ -115,8 +115,8 @@
   #timelineEditorPage { display: none; position: fixed; inset: 0; background: var(--bg-main); z-index: 150; flex-direction: column; }
   #timelineEditorPage.open { display: flex; }
   .break-row { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 6px; }
-  .break-row input[type="text"] { flex: 1; }
-  .break-row input[type="time"], .break-row input[type="number"] { width: 100px; }
+  .break-row input[type="text"]:first-child { flex: 1; }
+  .break-row input[type="text"]:not(:first-child), .break-row input[type="number"] { width: 70px; }
 
 
   .scale-key {
@@ -487,14 +487,9 @@
     </div>
   </div>
   <div style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:18px; max-width:760px; margin:0 auto; width:100%;">
-    <div>
-      <label style="font-size:12px; font-weight:700;">Shift Length</label>
-      <select id="shiftLengthSelect" onchange="onShiftLengthChange()" style="margin-left:10px;">
-        <option value="28800">8 hours</option>
-        <option value="36000">10 hours</option>
-        <option value="43200">12 hours</option>
-        <option value="86400">24 hours</option>
-      </select>
+    <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+      <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; white-space:nowrap;">Start <input type="text" id="shiftStartInput" maxlength="5" placeholder="h:mm" style="width:60px;" onchange="onShiftTimesChange()"> <select id="shiftStartAP" style="width:auto; display:inline-block;" onchange="onShiftTimesChange()"><option>AM</option><option>PM</option></select></label>
+      <label style="font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; white-space:nowrap;">End <input type="text" id="shiftEndInput" maxlength="5" placeholder="h:mm" style="width:60px;" onchange="onShiftTimesChange()"> <select id="shiftEndAP" style="width:auto; display:inline-block;" onchange="onShiftTimesChange()"><option>AM</option><option>PM</option></select></label>
     </div>
 
     <div>
@@ -697,6 +692,7 @@ let isRunning = false, isSimActive = false, simTime = 0, totalPartsCompleted = 0
 // "Completed Parts" display: every part currently sitting on a node's done pile, across the whole cell.
 function getDonePartsTotal() { return stations.reduce((sum, st) => sum + (st.type === 'node' ? (st.completed || 0) : 0), 0); }
 let shiftDurationSec = 24 * 3600;
+let shiftStartSec = 0; // wall-clock time of day (seconds after midnight) at which the shift begins
 let breaks = []; // {id, name, startSec, durationSec}
 let suppressSimUI = false, isDraggingTimeline = false;
 const canvas = document.getElementById('simCanvas'), ctx = canvas.getContext('2d');
@@ -2822,7 +2818,7 @@ async function exportWorkflowJSON() {
     taktAvailMin: parseFloat(document.getElementById('taktAvail').value) || 0,
     taktDemand: parseFloat(document.getElementById('taktDemand').value) || 0,
     oePercent: parseFloat(document.getElementById('oePercent').value) || 100,
-    shiftDurationSec, breaks };
+    shiftDurationSec, shiftStartSec, breaks };
   const jsonStr = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const defaultName = 'lean_cell_layout.json';
@@ -2848,7 +2844,7 @@ async function saveWorkflowJSON() {
     taktAvailMin: parseFloat(document.getElementById('taktAvail').value) || 0,
     taktDemand: parseFloat(document.getElementById('taktDemand').value) || 0,
     oePercent: parseFloat(document.getElementById('oePercent').value) || 100,
-    shiftDurationSec, breaks };
+    shiftDurationSec, shiftStartSec, breaks };
   const jsonStr = JSON.stringify(data, null, 2);
   try {
     const writable = await currentLayoutFileHandle.createWritable();
@@ -3083,7 +3079,9 @@ function updateTimelineBar() {
   document.getElementById('timelineHandle').style.left = pct + '%';
   const clk = document.getElementById('timelineClock');
   if (document.activeElement !== clk) clk.value = formatShiftClockSec(simTime);
-  document.getElementById('timelineClock2').innerText = formatShiftClock(shiftDurationSec);
+  const clk2 = document.getElementById('timelineClock2');
+  clk2.innerText = `${fmtHHMM(shiftStartSec)} – ${fmtHHMM(shiftStartSec + shiftDurationSec)}`;
+  clk2.title = `Now: ${fmtHHMM(shiftStartSec + simTime)} (shift length ${formatShiftClock(shiftDurationSec)})`;
   const banner = document.getElementById('breakBanner');
   const activeBreak = isSimTimeOnBreak(simTime);
   banner.style.display = activeBreak ? 'flex' : 'none';
@@ -3185,8 +3183,32 @@ function startTimelineDrag(evt) {
   window.addEventListener('mouseup', onUp);
 }
 
+// ---- 12-hour (AM/PM) time-of-day helpers ----
+const DAY_SEC = 86400;
+function normDay(sec) { return ((Math.round(sec / 60) * 60) % DAY_SEC + DAY_SEC) % DAY_SEC; }
+// Splits a time of day into the typed part ("h:mm") and "AM"/"PM".
+function splitTime12(secOfDay) {
+  const t = normDay(secOfDay), h24 = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60);
+  return { text: `${h24 % 12 === 0 ? 12 : h24 % 12}:${String(m).padStart(2, '0')}`, ap: h24 < 12 ? 'AM' : 'PM' };
+}
+function fmtHHMM(secOfDay) { const p = splitTime12(secOfDay); return `${p.text} ${p.ap}`; }
+// Parses typed "h:mm" / "hh:mm" / "hmm" plus AM/PM into seconds after midnight, or null if invalid.
+function parseTime12(text, ap) {
+  const m = (text || '').trim().match(/^(\d{1,2})(?::?(\d{2}))?$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10), min = m[2] ? parseInt(m[2], 10) : 0;
+  if (h < 1 || h > 12 || min > 59) return null;
+  return ((h % 12) + (String(ap).toUpperCase() === 'PM' ? 12 : 0)) * 3600 + min * 60;
+}
+function setTimeFields(textId, apId, secOfDay) {
+  const p = splitTime12(secOfDay);
+  document.getElementById(textId).value = p.text;
+  document.getElementById(apId).value = p.ap;
+}
+
 function openTimelineEditor() {
-  document.getElementById('shiftLengthSelect').value = String(shiftDurationSec);
+  setTimeFields('shiftStartInput', 'shiftStartAP', shiftStartSec);
+  setTimeFields('shiftEndInput', 'shiftEndAP', shiftStartSec + shiftDurationSec);
   renderBreaksEditorList();
   renderTimelineEditorPreview();
   document.getElementById('timelineEditorPage').classList.add('open');
@@ -3199,13 +3221,29 @@ function closeTimelineEditor() {
   updateTimelineBar();
 }
 
-function onShiftLengthChange() {
-  shiftDurationSec = parseInt(document.getElementById('shiftLengthSelect').value, 10);
-  // Clamp any breaks that no longer fit within the new, shorter shift length.
+function onShiftTimesChange() {
+  const newStart = parseTime12(document.getElementById('shiftStartInput').value, document.getElementById('shiftStartAP').value);
+  const newEnd = parseTime12(document.getElementById('shiftEndInput').value, document.getElementById('shiftEndAP').value);
+  if (newStart === null || newEnd === null) { // invalid entry - restore current values
+    setTimeFields('shiftStartInput', 'shiftStartAP', shiftStartSec);
+    setTimeFields('shiftEndInput', 'shiftEndAP', shiftStartSec + shiftDurationSec);
+    return;
+  }
+  setTimeFields('shiftStartInput', 'shiftStartAP', newStart);
+  setTimeFields('shiftEndInput', 'shiftEndAP', newEnd);
+  // Keep breaks at the same wall-clock time when the start moves (break.startSec is relative to shift start).
+  const delta = newStart - shiftStartSec;
+  let dur = ((newEnd - newStart) % DAY_SEC + DAY_SEC) % DAY_SEC;
+  if (dur === 0) dur = DAY_SEC; // same start & end = full 24 h
+  breaks.forEach(b => { b.startSec = (((b.startSec - delta) % DAY_SEC) + DAY_SEC) % DAY_SEC; });
+  shiftStartSec = newStart;
+  shiftDurationSec = dur;
+  // Clamp any breaks that no longer fit within the new shift length.
   breaks.forEach(b => {
     b.startSec = Math.min(b.startSec, Math.max(0, shiftDurationSec - 60));
     b.durationSec = Math.min(b.durationSec, shiftDurationSec - b.startSec);
   });
+  if (simTime > shiftDurationSec) { simTime = shiftDurationSec; }
   renderBreaksEditorList();
   renderTimelineEditorPreview();
   recalcAvailTimeFromBreaks();
@@ -3230,10 +3268,20 @@ function updateBreakField(id, field, value) {
   const b = breaks.find(x => x.id === id);
   if (!b) return;
   if (field === 'name') b.name = value;
-  else if (field === 'startTime') { const [h, m] = value.split(':').map(Number); b.startSec = Math.max(0, Math.min(shiftDurationSec, (h * 60 + m) * 60)); }
+  else if (field === 'startTime') { // value = wall-clock time of day in seconds; stored relative to shift start
+    const rel = (((value - shiftStartSec) % DAY_SEC) + DAY_SEC) % DAY_SEC;
+    b.startSec = Math.max(0, Math.min(shiftDurationSec, rel));
+    b.durationSec = Math.min(b.durationSec, shiftDurationSec - b.startSec);
+  }
   else if (field === 'durationMin') b.durationSec = Math.max(0, (parseFloat(value) || 0) * 60);
   renderTimelineEditorPreview();
   recalcAvailTimeFromBreaks();
+}
+
+function onBreakTimeChange(id) {
+  const sec = parseTime12(document.getElementById('brkTxt_' + id).value, document.getElementById('brkAp_' + id).value);
+  if (sec !== null) updateBreakField(id, 'startTime', sec);
+  renderBreaksEditorList(); // re-sync the boxes (restores the old value if invalid or clamped)
 }
 
 function renderBreaksEditorList() {
@@ -3243,11 +3291,9 @@ function renderBreaksEditorList() {
   breaks.forEach(b => {
     const row = document.createElement('div');
     row.className = 'break-row';
-    const startH = String(Math.floor(b.startSec / 3600)).padStart(2, '0');
-    const startM = String(Math.floor((b.startSec % 3600) / 60)).padStart(2, '0');
     row.innerHTML = `
       <input type="text" value="${b.name}" onchange="updateBreakField('${b.id}','name',this.value)">
-      <label style="font-size:10px; color:var(--text-muted);">Start <input type="time" value="${startH}:${startM}" onchange="updateBreakField('${b.id}','startTime',this.value)"></label>
+      <label style="font-size:10px; color:var(--text-muted);">Start <input type="text" id="brkTxt_${b.id}" maxlength="5" placeholder="h:mm" value="${splitTime12(shiftStartSec + b.startSec).text}" onchange="onBreakTimeChange('${b.id}')"> <select id="brkAp_${b.id}" style="width:auto; display:inline-block;" onchange="onBreakTimeChange('${b.id}')"><option${splitTime12(shiftStartSec + b.startSec).ap === 'AM' ? ' selected' : ''}>AM</option><option${splitTime12(shiftStartSec + b.startSec).ap === 'PM' ? ' selected' : ''}>PM</option></select></label>
       <label style="font-size:10px; color:var(--text-muted);">Minutes <input type="number" min="1" value="${b.durationSec / 60}" onchange="updateBreakField('${b.id}','durationMin',this.value)"></label>
       <button class="danger" onclick="removeBreak('${b.id}')">✕</button>`;
     el.appendChild(row);
@@ -4148,6 +4194,7 @@ function applyLoadedLayoutJSON(text) {
       if (p.taktDemand !== undefined) document.getElementById('taktDemand').value = p.taktDemand;
       if (p.oePercent !== undefined) document.getElementById('oePercent').value = p.oePercent;
       shiftDurationSec = p.shiftDurationSec || 24 * 3600;
+      shiftStartSec = p.shiftStartSec || 0;
       breaks = p.breaks || [];
       
       // Migrate legacy pickup/dropoff nodes and per-station/global wet settings to the current schema.
@@ -4177,7 +4224,7 @@ function applyLoadedLayoutJSON(text) {
       zones.forEach(z => { if (z.rot === undefined) z.rot = 0; if (!z.shape) z.shape = 'rect'; });
       
       nodeCounter = stations.length + 1; resetSim(); renderOperatorSelect(); renderInspector(); renderPathGroups(); calculateAnalyticalConclusion();
-      renderTimelineTicks(); renderTimelineBreaks();
+      renderTimelineTicks(); renderTimelineBreaks(); updateTimelineBar();
     } catch (err) { alert('Invalid layout file format.'); }
 }
 
